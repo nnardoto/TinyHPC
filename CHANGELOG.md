@@ -70,3 +70,8 @@
 - `TINYHPC_ROOT` é a fonte de verdade para o prefixo; `HPC_ROOT` permanece apenas como alias interno de compatibilidade;
 - receita GCC 9.5.0 funcional;
 - receita OpenMPI 5.0.8 + GCC 9.5.0 com dependência automática, checksum, teste, modulefile e variante Bash.
+
+## v0.7.0
+- Add complete ScaLAPACK 2.2.0 recipe for GCC 9.5.0 + OpenMPI 5.0.8 + OpenBLAS 0.3.30.
+- Pass BLAS/LAPACK and MPI compilers explicitly to CMake.
+- Add a two-rank BLACS functional smoke test.
