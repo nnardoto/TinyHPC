@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.6.0
+
+- add complete FFTW 3.3.10 GCC 9 recipe
+- enable shared FFTW libraries and pthread threading
+- add functional threaded forward/backward DFT tests for Fish and Bash
+- lock FFTW 3.3.10 SHA-256
+
 ## v0.5.0 — OpenBLAS 0.3.30
 
 - adiciona receita completa `openblas/0.3.30-gcc9`;

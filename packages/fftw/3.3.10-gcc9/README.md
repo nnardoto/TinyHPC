@@ -1,8 +1,9 @@
-# FFTW 3.3.10
+# FFTW 3.3.10 (GCC 9)
 
-Configuração validada:
+Portable double-precision FFTW build for TinyHPC.
 
-```text
-CC=gcc MPICC=mpicc
---enable-shared --enable-openmp --enable-threads --enable-mpi
-```
+- shared libraries only
+- pthread threading enabled
+- no machine-specific SIMD flags
+- dependency: `gcc/9.5.0`
+- functional test exercises forward/backward complex DFT through the threaded API
