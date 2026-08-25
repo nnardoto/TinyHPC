@@ -126,7 +126,8 @@ Receitas completas ou funcionais:
 - MPFR 4.1.0 (`gmp/6.1.0`);
 - MPC 1.2.1 (`gmp/6.1.0`, `mpfr/4.1.0`);
 - GCC 9.5.0 (`gmp/6.1.0`, `mpfr/4.1.0`, `mpc/1.2.1`);
-- OpenMPI 5.0.8 + GCC 9.5.0.
+- OpenMPI 5.0.8 + GCC 9.5.0;
+- OpenBLAS 0.3.30 + GCC 9.5.0 (`DYNAMIC_ARCH=1`, BLAS/LAPACK testados).
 
 GCC é configurado com os prefixos fornecidos pelos modulefiles das três dependências e com ISL desabilitado nesta etapa. Isso evita dependências silenciosas em pacotes `*-devel` da distribuição e mantém download, versão e checksum sob controle do TinyHPC.
 

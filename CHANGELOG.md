@@ -1,11 +1,25 @@
 # Changelog
 
+## v0.5.0 — OpenBLAS 0.3.30
+
+- adiciona receita completa `openblas/0.3.30-gcc9`;
+- build portátil com `DYNAMIC_ARCH=1` e threading pthread;
+- usa `NO_AFFINITY=1` para não impor afinidade sobre SLURM/usuário;
+- embute rpath para os runtimes do GCC 9 sem adicionar o runtime do GCC a `LD_LIBRARY_PATH`;
+- testes numéricos de BLAS (`DGEMM`) e LAPACK (`DGESV`);
+- receitas equivalentes em Fish e Bash.
+
 ## v0.4.3 — GCC module sem contaminação do shell
 
 - remove `gcc/9.5.0/lib64` e `gcc/9.5.0/lib` de `LD_LIBRARY_PATH` no modulefile do GCC;
 - evita que carregar GCC 9.5.0 force o Fish e outras ferramentas do sistema a usar uma `libstdc++.so.6` antiga;
 - mantém `PATH`, `LIBRARY_PATH`, `CPATH`, `CC`, `CXX`, `FC` e `GCC_ROOT` para o ambiente de compilação;
 - modulefiles instalados continuam sendo sincronizados automaticamente ao reutilizar um pacote já instalado.
+
+## v0.4.2 — sincronização de modulefiles
+
+- sincroniza modulefiles instalados com a receita atual antes de reutilizar um pacote;
+- evita estado obsoleto após mudanças de receita ou versão.
 
 ## v0.4.1 — MPC 1.2.1 e modulefiles robustos
 
@@ -49,7 +63,3 @@
 - `TINYHPC_ROOT` é a fonte de verdade para o prefixo; `HPC_ROOT` permanece apenas como alias interno de compatibilidade;
 - receita GCC 9.5.0 funcional;
 - receita OpenMPI 5.0.8 + GCC 9.5.0 com dependência automática, checksum, teste, modulefile e variante Bash.
-
-## v0.4.2
-- Synchronize installed modulefiles with recipe definitions before reuse.
-- Prevent stale modulefiles after recipe/version updates.
