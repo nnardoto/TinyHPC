@@ -1,0 +1,173 @@
+#!/usr/bin/env fish
+set repo (realpath (dirname (realpath (status filename)))/..)
+set -gx TINYHPC_HOME $repo
+set -gx TINYHPC_REPO $repo
+source $repo/lib/common.fish
+hpc_load_defaults $repo
+
+function pkgdir
+    echo $repo/packages/$argv[1]
+end
+
+function loadpkg
+    set d (pkgdir $argv[1])
+    test -d $d; or hpc_die "pacote desconhecido: $argv[1]"
+    hpc_read_manifest $d/package.conf
+    echo $d
+end
+
+function hpc_is_installed
+    set spec $argv[1]
+    set d (pkgdir $spec)
+    test -f $d/package.conf; or return 1
+    hpc_read_manifest $d/package.conf
+    test -d $HPC_SOFTWARE/$PKG_prefix_rel; and test -f $HPC_MODULEFILES/$PKG_module.lua
+end
+
+function hpc_sync_modulefile
+    set spec $argv[1]
+    set d (pkgdir $spec)
+    test -f $d/package.conf; or hpc_die "pacote desconhecido: $spec"
+    hpc_read_manifest $d/package.conf
+
+    test -d $HPC_SOFTWARE/$PKG_prefix_rel; or return 0
+    test -f $d/module.lua; or hpc_die "modulefile ausente na receita de $spec"
+
+    set target $HPC_MODULEFILES/$PKG_module.lua
+    mkdir -p (dirname $target)
+
+    if not test -f $target; or not cmp -s $d/module.lua $target
+        cp $d/module.lua $target
+        hpc_note "modulefile de $spec sincronizado"
+    end
+end
+
+function hpc_install_spec
+    set spec $argv[1]
+    set d (loadpkg $spec)
+
+    # Copia os campos necessários porque resolver dependências relê manifestos.
+    set -l depends $PKG_depends
+
+    if test -n "$depends"
+        for dep in (string split ',' $depends)
+            set dep (string trim $dep)
+            test -n "$dep"; or continue
+            if hpc_is_installed $dep
+                hpc_sync_modulefile $dep
+                hpc_note "dependência $dep já instalada"
+            else
+                hpc_install_spec $dep; or return 1
+            end
+        end
+    end
+
+    # Restaura o manifesto do pacote atual após a recursão.
+    set d (loadpkg $spec)
+    set -gx HPC_PACKAGE_DIR $d
+    set -gx HPC_PREFIX $HPC_SOFTWARE/$PKG_prefix_rel
+    set log $HPC_LOGS/(string replace -a / - $spec).log
+
+    if hpc_is_installed $spec
+        hpc_sync_modulefile $spec
+        hpc_note "$spec já instalado"
+        return 0
+    end
+
+    # Build e testes veem exatamente os módulos declarados como dependências.
+    if test -n "$PKG_depends"
+        for dep in (string split ',' $PKG_depends)
+            set dep (string trim $dep)
+            test -n "$dep"; or continue
+            set depdir (loadpkg $dep)
+            set dep_module $PKG_module
+            module load $dep_module; or hpc_die "não foi possível carregar módulo de $dep"
+        end
+        set d (loadpkg $spec)
+        set -gx HPC_PACKAGE_DIR $d
+        set -gx HPC_PREFIX $HPC_SOFTWARE/$PKG_prefix_rel
+    end
+
+    set -l recipe_shell fish
+    if set -q HPC_RECIPE_SHELL
+        set recipe_shell $HPC_RECIPE_SHELL
+    end
+
+    switch $recipe_shell
+        case fish
+            set build_script $d/build.fish
+            set test_script $d/test.fish
+            set runner fish
+        case bash
+            set build_script $d/build.sh
+            set test_script $d/test.sh
+            set runner bash
+        case '*'
+            hpc_die "HPC_RECIPE_SHELL deve ser 'fish' ou 'bash'"
+    end
+
+    test -f $build_script; or hpc_die "receita $recipe_shell indisponível para $spec: $build_script"
+
+    hpc_note "instalando $spec [recipe=$recipe_shell]"
+    $runner $build_script 2>&1 | tee $log
+    test $pipestatus[1] -eq 0; or hpc_die "build falhou"
+
+    if test -f $test_script
+        $runner $test_script; or hpc_die "teste falhou"
+    end
+
+    mkdir -p (dirname $HPC_MODULEFILES/$PKG_module.lua)
+    cp $d/module.lua $HPC_MODULEFILES/$PKG_module.lua
+    hpc_note "$spec OK"
+end
+
+switch $argv[1]
+case list
+    for f in (find $repo/packages -name package.conf | sort)
+        echo (string replace "$repo/packages/" "" (dirname $f))
+    end
+
+case info
+    set d (loadpkg $argv[2])
+    echo "name=$PKG_name"
+    echo "version=$PKG_version"
+    echo "source=$PKG_source"
+    echo "prefix=$HPC_SOFTWARE/$PKG_prefix_rel"
+    echo "module=$PKG_module"
+    echo "depends=$PKG_depends"
+
+case install
+    hpc_require_layout
+    test (count $argv) -ge 2; or hpc_die "uso: hpc install <pacote/versao>"
+    module purge
+    module use $HPC_MODULEFILES
+    hpc_install_spec $argv[2]
+
+case clean
+    set d (loadpkg $argv[2])
+    rm -rf $HPC_BUILD/$PKG_build_dir $HPC_SRC/$PKG_source_dir
+    hpc_note "build e source extraído removidos; cache preservado"
+
+case remove
+    set d (loadpkg $argv[2])
+    rm -rf $HPC_SOFTWARE/$PKG_prefix_rel
+    rm -f $HPC_MODULEFILES/$PKG_module.lua
+    hpc_note "$argv[2] removido"
+
+case doctor
+    hpc_require_layout
+    echo "TINYHPC_HOME=$TINYHPC_HOME"
+    echo "TINYHPC_ROOT=$TINYHPC_ROOT"
+    echo "HPC_JOBS=$HPC_JOBS"
+    for c in fish bash curl tar sha256sum make patch cmp module
+        if type -q $c
+            printf "%-12s OK\n" $c
+        else
+            printf "%-12s MISSING\n" $c
+        end
+    end
+
+case '*'
+    echo "hpc {list|info|install|clean|remove|doctor} [pacote/versao]"
+    exit 1
+end
