@@ -11,6 +11,6 @@ hpc_extract "$archive" "$HPC_SRC" "$PKG_source_dir"
 rm -rf "$build"
 mkdir -p "$build"
 cd "$build"
-"$src/configure" --prefix="$HPC_PREFIX"
+CC=gcc CFLAGS="-std=gnu17" "$src/configure" --prefix="$HPC_PREFIX"
 make -j"$HPC_JOBS"
 make install

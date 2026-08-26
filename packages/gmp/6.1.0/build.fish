@@ -14,7 +14,7 @@ rm -rf $build
 mkdir -p $build
 cd $build
 
-$src/configure --prefix=$HPC_PREFIX
+env CC=gcc CFLAGS="-std=gnu17" $src/configure --prefix=$HPC_PREFIX
 or exit 1
 
 make -j$HPC_JOBS
