@@ -75,3 +75,11 @@
 - Add complete ScaLAPACK 2.2.0 recipe for GCC 9.5.0 + OpenMPI 5.0.8 + OpenBLAS 0.3.30.
 - Pass BLAS/LAPACK and MPI compilers explicitly to CMake.
 - Add a two-rank BLACS functional smoke test.
+
+## v0.8.0
+
+- Added the complete OpenMX 4.0 recipe targeting the official 4.0.1 patch.
+- Added GNU-stack wiring for OpenMPI, OpenBLAS, FFTW and ScaLAPACK.
+- Added a one-rank H2O OpenMX smoke test.
+- Extended `tools/lock-checksum.fish` to lock multiple upstream artifacts and
+  optionally write checksums back to a manifest with `--write`.
