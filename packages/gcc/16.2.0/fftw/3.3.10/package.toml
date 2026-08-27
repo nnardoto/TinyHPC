@@ -3,7 +3,7 @@ schema = 1
 [package]
 name = "fftw"
 version = "3.3.10"
-description = "FFTW 3.3.10 built with GCC 9.5.0"
+description = "FFTW 3.3.10 optimized for GCC 16.2.0"
 dependencies = []
 
 [source]
@@ -28,7 +28,6 @@ arguments = [
   "CFLAGS=${HPC_OPT_FLAGS}",
   "FFLAGS=${HPC_OPT_FLAGS}",
   "FCFLAGS=${HPC_OPT_FLAGS}",
-  # Embed rpaths to the compiler runtime so the shared libraries resolve.
   "LDFLAGS=-Wl,-rpath,${GCC_ROOT}/lib64 -Wl,-rpath,${GCC_ROOT}/lib",
 ]
 

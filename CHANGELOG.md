@@ -13,3 +13,6 @@ Versão inicial do TinyHPC.
 - configuração TOML em camadas (`config/defaults.toml`, configuração do usuário e variáveis de ambiente);
 - receitas atuais: GMP 6.1.0/6.3.0, MPFR 4.1.0/4.2.2, MPC 1.2.1/1.3.1, ISL 0.24, GCC 9.5.0/16.2.0, OpenBLAS 0.3.30, FFTW 3.3.10, Open MPI 5.0.8, ScaLAPACK 2.2.0 e Quantum ESPRESSO 7.6;
 - Graphite habilitado nas toolchains GCC 9.5.0 e 16.2.0 por meio do ISL 0.24.
+- stacks completas de Open MPI, OpenBLAS, FFTW, ScaLAPACK, Quantum ESPRESSO e OpenMX disponíveis para GCC 9.5.0 e 16.2.0;
+- perfil de otimização aplicado às receitas com `HPC_OPT_FLAGS`, SIMD nativo no FFTW e modelo híbrido MPI + OpenMP com OpenBLAS sequencial;
+- prefixes físicos isolados por pacote, fingerprints transitivos e upgrades com rollback para reconstrução segura após mudanças de receita ou perfil.

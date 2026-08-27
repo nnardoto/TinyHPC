@@ -3,7 +3,7 @@ schema = 1
 [package]
 name = "scalapack"
 version = "2.2.0"
-description = "ScaLAPACK 2.2.0 with Open MPI 5.0.8 and OpenBLAS 0.3.30"
+description = "ScaLAPACK 2.2.0 with GCC 16.2.0, Open MPI and OpenBLAS"
 dependencies = ["openblas/0.3.30"]
 
 [source]
@@ -15,9 +15,6 @@ directory = "scalapack-2.2.0"
 [build]
 system = "cmake"
 requires = ["cmake"]
-# BUILD_SHARED_LIBS plus explicit BLAS/LAPACK libs yield a shared library; the
-# policy minimum lets newer CMake configure this older project. Embedded
-# rpaths make OpenBLAS/MPI resolvable at runtime.
 arguments = [
   "-DCMAKE_BUILD_TYPE=Release",
   "-DCMAKE_C_FLAGS_RELEASE=${HPC_OPT_FLAGS}",

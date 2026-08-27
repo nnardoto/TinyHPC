@@ -3,7 +3,7 @@ schema = 1
 [package]
 name = "quantum-espresso"
 version = "7.6"
-description = "Quantum ESPRESSO 7.6 with Open MPI, OpenBLAS, FFTW and ScaLAPACK"
+description = "Quantum ESPRESSO 7.6 optimized for GCC 16.2.0 with MPI and OpenMP"
 dependencies = ["openblas/0.3.30", "fftw/3.3.10", "scalapack/2.2.0"]
 
 [source]
@@ -15,9 +15,6 @@ directory = "q-e-qe-7.6"
 [build]
 system = "cmake"
 requires = ["cmake", "git"]
-# Drive the build through the MPI wrappers and dependency prefixes, and embed
-# an install rpath so the binaries find those libraries at runtime. Tests are
-# disabled to keep the build fast.
 arguments = [
   "-DCMAKE_BUILD_TYPE=Release",
   "-DCMAKE_C_FLAGS_RELEASE=${HPC_OPT_FLAGS} -fgraphite-identity -floop-nest-optimize",

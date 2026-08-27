@@ -58,10 +58,14 @@ O projeto separa o gerenciador (`/opt/tinyhpc`) da stack gerenciada (`/opt/hpc`)
 - MPC 1.2.1 e 1.3.1;
 - ISL 0.24 (Graphite no GCC 9.5.0 e 16.2.0);
 - GCC 9.5.0 e 16.2.0;
-- OpenBLAS 0.3.30 (GCC 9.5.0);
-- FFTW 3.3.10 (GCC 9.5.0);
-- Open MPI 5.0.8 (GCC 9.5.0);
-- ScaLAPACK 2.2.0 (Open MPI 5.0.8 + OpenBLAS 0.3.30);
-- Quantum ESPRESSO 7.6 (stack completa).
+- OpenBLAS 0.3.30 (GCC 9.5.0 e 16.2.0);
+- FFTW 3.3.10 (GCC 9.5.0 e 16.2.0);
+- Open MPI 5.0.8 (GCC 9.5.0 e 16.2.0);
+- ScaLAPACK 2.2.0 (ambas as stacks Open MPI + OpenBLAS);
+- Quantum ESPRESSO 7.6 e OpenMX 4.0.1 (ambas as stacks completas).
+
+As receitas científicas respeitam `build.profile` (`native` por padrão), usam
+MPI + OpenMP e mantêm o OpenBLAS sequencial para evitar oversubscription. Veja
+[docs/configuration.md](docs/configuration.md) para recomendações de execução.
 
 Este é um projeto inicial (v0.1.0) em desenvolvimento ativo.

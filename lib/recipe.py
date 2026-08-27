@@ -30,6 +30,8 @@ CONFIG_ENVIRONMENT = (
     "TINYHPC_ROOT",
     "HPC_JOBS",
     "HPC_PROFILE",
+    "HPC_OPT_FLAGS",
+    "HPC_OPENBLAS_DYNAMIC_ARCH",
     "HPC_ROOT",
     "HPC_CACHE",
     "HPC_SRC",
@@ -113,8 +115,11 @@ def read_configuration(path: Path, required: bool = False) -> dict[str, object]:
             die(f"{path}: paths.{field} deve ser uma string não vazia")
     if "jobs" in build and (not isinstance(build["jobs"], int) or build["jobs"] < 1):
         die(f"{path}: build.jobs deve ser um inteiro positivo")
-    if "profile" in build and (not isinstance(build["profile"], str) or not build["profile"]):
-        die(f"{path}: build.profile deve ser uma string não vazia")
+    if "profile" in build and (
+        not isinstance(build["profile"], str)
+        or build["profile"] not in {"generic", "native"}
+    ):
+        die(f"{path}: build.profile deve ser 'generic' ou 'native'")
     return data
 
 
@@ -148,6 +153,17 @@ def apply_configuration(repository_root: Path) -> Path | None:
     os.environ["TINYHPC_ROOT"] = os.path.expandvars(os.path.expanduser(os.environ["TINYHPC_ROOT"]))
     os.environ.setdefault("HPC_JOBS", str(build["jobs"]))
     os.environ.setdefault("HPC_PROFILE", str(build["profile"]))
+    profile = os.environ["HPC_PROFILE"]
+    if profile not in {"generic", "native"}:
+        die("HPC_PROFILE deve ser 'generic' ou 'native'")
+    if profile == "generic":
+        optimization_flags = "-O3"
+        openblas_dynamic_arch = "1"
+    else:
+        optimization_flags = "-O3 -march=native -mtune=native"
+        openblas_dynamic_arch = "0"
+    os.environ["HPC_OPT_FLAGS"] = optimization_flags
+    os.environ["HPC_OPENBLAS_DYNAMIC_ARCH"] = openblas_dynamic_arch
     root = os.environ["TINYHPC_ROOT"]
     os.environ["HPC_ROOT"] = root
     os.environ["HPC_CACHE"] = f"{root}/cache"
@@ -260,6 +276,21 @@ class Repository:
 
     def children(self, recipe: Recipe) -> list[Recipe]:
         return [candidate for candidate in self.recipes.values() if self.parent(candidate) is recipe]
+
+    def dependents(self, recipe: Recipe) -> list[Recipe]:
+        affected = {recipe.spec}
+        result: list[Recipe] = []
+        while True:
+            added = []
+            for candidate in self.recipes.values():
+                if candidate.spec in affected:
+                    continue
+                if any(dependency in affected for dependency in self.dependencies(candidate)):
+                    affected.add(candidate.spec)
+                    added.append(candidate)
+            if not added:
+                return result
+            result.extend(added)
 
     def validate_recipe(self, recipe: Recipe, require_lock: bool = True) -> list[str]:
         errors: list[str] = []
@@ -384,7 +415,9 @@ class Runtime:
         return [self.cache, self.sources, self.builds, self.software, self.modulefiles, self.logs]
 
     def prefix(self, recipe: Recipe) -> Path:
-        return self.software / recipe.spec
+        # Keep package identity hierarchical without nesting one package's
+        # owned files inside another package's replaceable installation.
+        return self.software / recipe.spec / ".prefix"
 
     def source_path(self, recipe: Recipe) -> Path:
         return self.sources / recipe.source_directory
@@ -398,8 +431,80 @@ class Runtime:
     def marker_path(self, recipe: Recipe) -> Path:
         return self.prefix(recipe) / ".tinyhpc-installed"
 
+    def backup_path(self, recipe: Recipe) -> Path:
+        prefix = self.prefix(recipe)
+        return prefix.with_name(f"{prefix.name}.tinyhpc-backup")
+
+    def modulefile_backup_path(self, recipe: Recipe) -> Path:
+        modulefile = self.modulefile_path(recipe)
+        return modulefile.with_suffix(modulefile.suffix + ".tinyhpc-backup")
+
     def installed(self, recipe: Recipe) -> bool:
-        return self.marker_path(recipe).is_file()
+        state = self.installation_state(recipe)
+        return (
+            state is not None
+            and state.get("schema") == 2
+            and state.get("fingerprint") == self.recipe_fingerprint(recipe)
+        )
+
+    def installation_state(self, recipe: Recipe) -> dict[str, object] | None:
+        marker = self.marker_path(recipe)
+        if not marker.is_file():
+            return None
+        try:
+            state = json.loads(marker.read_text())
+        except (json.JSONDecodeError, OSError):
+            return None
+        if not isinstance(state, dict) or state.get("spec") != recipe.spec:
+            return None
+        return state
+
+    def recipe_fingerprint(
+        self,
+        recipe: Recipe,
+        cache: dict[str, str] | None = None,
+        visiting: set[str] | None = None,
+    ) -> str:
+        cache = {} if cache is None else cache
+        visiting = set() if visiting is None else visiting
+        if recipe.spec in cache:
+            return cache[recipe.spec]
+        if recipe.spec in visiting:
+            die(f"ciclo de dependências ao calcular fingerprint: {recipe.spec}")
+        visiting.add(recipe.spec)
+
+        files = [recipe.path]
+        script = recipe.build.get("script")
+        if script:
+            files.append(recipe.directory / str(script))
+        for test in recipe.tests:
+            if isinstance(test, dict) and test.get("type") == "script":
+                files.append(recipe.directory / str(test.get("path", "test.sh")))
+        files.extend(sorted((recipe.directory / "patches").glob("*.patch")))
+
+        digest = hashlib.sha256()
+        contents = b""
+        for path in files:
+            digest.update(path.relative_to(recipe.directory).as_posix().encode())
+            if path.is_file():
+                content = path.read_bytes()
+                digest.update(content)
+                contents += content
+        for variable in ("HPC_OPT_FLAGS", "HPC_OPENBLAS_DYNAMIC_ARCH"):
+            if f"${{{variable}}}".encode() in contents:
+                digest.update(variable.encode())
+                digest.update(os.environ.get(variable, "").encode())
+        for dependency in self.repository.dependencies(recipe):
+            digest.update(dependency.encode())
+            digest.update(
+                self.recipe_fingerprint(
+                    self.repository.get(dependency), cache=cache, visiting=visiting
+                ).encode()
+            )
+
+        visiting.remove(recipe.spec)
+        cache[recipe.spec] = digest.hexdigest()
+        return cache[recipe.spec]
 
     def expand(self, value: str, recipe: Recipe) -> str:
         # Substitute {prefix}/{source}/{build}/{jobs} placeholders, then expand
@@ -558,7 +663,7 @@ class Runtime:
             f"whatis({lua_quote('Version: ' + recipe.version)})",
             "",
             'local hpc_root = os.getenv("TINYHPC_ROOT") or "/opt/hpc"',
-            f"local root = pathJoin(hpc_root, {lua_quote('software/' + recipe.spec)})",
+            f"local root = pathJoin(hpc_root, {lua_quote('software/' + recipe.spec + '/.prefix')})",
         ]
         family = recipe.module.get("family")
         if family:
@@ -596,6 +701,11 @@ class Runtime:
         return "\n".join(lines) + "\n"
 
     def sync_modulefile(self, recipe: Recipe) -> None:
+        # Reconcile stale reverse dependencies every time an installed module
+        # is synchronized, making interrupted invalidation retryable.
+        for dependent in self.repository.dependents(recipe):
+            if not self.installed(dependent):
+                self.modulefile_path(dependent).unlink(missing_ok=True)
         target = self.modulefile_path(recipe)
         content = self.render_modulefile(recipe)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -606,20 +716,65 @@ class Runtime:
     def install_one(self, recipe: Recipe) -> None:
         self.require_layout()
         self.repository.validate([recipe])
+        prefix = self.prefix(recipe)
+        backup = self.backup_path(recipe)
+        modulefile = self.modulefile_path(recipe)
+        modulefile_backup = self.modulefile_backup_path(recipe)
+
+        if backup.exists():
+            if self.installation_state(recipe) is not None:
+                shutil.rmtree(backup, ignore_errors=True)
+                modulefile_backup.unlink(missing_ok=True)
+            else:
+                # Recover the last complete installation after interruption.
+                shutil.rmtree(prefix, ignore_errors=True)
+                backup.rename(prefix)
+                if modulefile_backup.is_file():
+                    modulefile.parent.mkdir(parents=True, exist_ok=True)
+                    modulefile_backup.replace(modulefile)
         if self.installed(recipe):
+            modulefile_backup.unlink(missing_ok=True)
             self.sync_modulefile(recipe)
             note(f"{recipe.spec} já instalado")
             return
         archive = self.fetch(recipe)
         source = self.extract(recipe, archive)
         self.apply_patches(recipe, source)
-        shutil.rmtree(self.prefix(recipe), ignore_errors=True)
-        self.build(recipe, source)
-        self.test(recipe)
-        self.sync_modulefile(recipe)
-        marker = self.marker_path(recipe)
-        marker.parent.mkdir(parents=True, exist_ok=True)
-        marker.write_text(json.dumps({"schema": SCHEMA_VERSION, "spec": recipe.spec}) + "\n")
+        had_previous_installation = prefix.exists()
+        had_previous_modulefile = modulefile.is_file()
+        modulefile_backup.unlink(missing_ok=True)
+        if had_previous_modulefile:
+            modulefile_backup.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(modulefile, modulefile_backup)
+        if had_previous_installation:
+            prefix.rename(backup)
+        try:
+            self.build(recipe, source)
+            self.test(recipe)
+            marker = self.marker_path(recipe)
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text(
+                json.dumps(
+                    {
+                        "schema": 2,
+                        "spec": recipe.spec,
+                        "fingerprint": self.recipe_fingerprint(recipe),
+                    }
+                )
+                + "\n"
+            )
+            self.sync_modulefile(recipe)
+        except BaseException:
+            shutil.rmtree(prefix, ignore_errors=True)
+            if had_previous_installation:
+                backup.rename(prefix)
+            if had_previous_modulefile:
+                modulefile_backup.replace(modulefile)
+            else:
+                modulefile.unlink(missing_ok=True)
+            raise
+        shutil.rmtree(backup, ignore_errors=True)
+        modulefile_backup.unlink(missing_ok=True)
         note(f"{recipe.spec} OK")
 
     def clean(self, recipe: Recipe) -> None:
@@ -629,7 +784,11 @@ class Runtime:
 
     def remove(self, recipe: Recipe) -> None:
         shutil.rmtree(self.prefix(recipe), ignore_errors=True)
+        shutil.rmtree(self.backup_path(recipe), ignore_errors=True)
         self.modulefile_path(recipe).unlink(missing_ok=True)
+        self.modulefile_backup_path(recipe).unlink(missing_ok=True)
+        for dependent in self.repository.dependents(recipe):
+            self.modulefile_path(dependent).unlink(missing_ok=True)
         note(f"{recipe.spec} removido")
 
 

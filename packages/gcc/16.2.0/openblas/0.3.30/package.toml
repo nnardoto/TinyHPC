@@ -3,7 +3,7 @@ schema = 1
 [package]
 name = "openblas"
 version = "0.3.30"
-description = "OpenBLAS 0.3.30 built with GCC 9.5.0"
+description = "OpenBLAS 0.3.30 optimized for GCC 16.2.0"
 dependencies = []
 
 [source]

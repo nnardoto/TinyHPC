@@ -3,7 +3,7 @@ schema = 1
 [package]
 name = "openmpi"
 version = "5.0.8"
-description = "Open MPI 5.0.8 built with GCC 9.5.0"
+description = "Open MPI 5.0.8 optimized for GCC 16.2.0"
 dependencies = []
 
 [source]
@@ -13,10 +13,7 @@ directory = "openmpi-5.0.8"
 
 [build]
 system = "autotools"
-# Disable usempif08 to keep this Open MPI build compatible with GCC 9 and
-# optimize the remaining C/C++/Fortran interfaces for the build host.
 arguments = [
-  "--disable-mpi-fortran-usempif08",
   "CFLAGS=${HPC_OPT_FLAGS}",
   "CXXFLAGS=${HPC_OPT_FLAGS}",
   "FCFLAGS=${HPC_OPT_FLAGS}",
