@@ -53,10 +53,11 @@ O projeto separa o gerenciador (`/opt/tinyhpc`) da stack gerenciada (`/opt/hpc`)
 
 ## Receitas disponíveis
 
-- GMP 6.1.0;
-- MPFR 4.1.0;
-- MPC 1.2.1;
-- GCC 9.5.0;
+- GMP 6.1.0 e 6.3.0;
+- MPFR 4.1.0 e 4.2.2;
+- MPC 1.2.1 e 1.3.1;
+- ISL 0.24 (Graphite no GCC 9.5.0 e 16.2.0);
+- GCC 9.5.0 e 16.2.0;
 - OpenBLAS 0.3.30 (GCC 9.5.0);
 - FFTW 3.3.10 (GCC 9.5.0);
 - Open MPI 5.0.8 (GCC 9.5.0);

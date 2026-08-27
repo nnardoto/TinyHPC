@@ -2,14 +2,14 @@ schema = 1
 
 [package]
 name = "gcc"
-version = "9.5.0"
-description = "GNU Compiler Collection 9.5.0"
-dependencies = ["gmp/6.1.0", "mpfr/4.1.0", "mpc/1.2.1", "isl/0.24"]
+version = "16.2.0"
+description = "GNU Compiler Collection 16.2.0"
+dependencies = ["gmp/6.3.0", "mpfr/4.2.2", "mpc/1.3.1", "isl/0.24"]
 
 [source]
-url = "https://ftp.gnu.org/gnu/gcc/gcc-9.5.0/gcc-9.5.0.tar.xz"
-sha256 = "27769f64ef1d4cd5e2be8682c0c93f9887983e6cfd1a927ce5a0a2915a95cf8f"
-directory = "gcc-9.5.0"
+url = "https://ftp.gnu.org/gnu/gcc/gcc-16.2.0/gcc-16.2.0.tar.xz"
+sha256 = "e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e"
+directory = "gcc-16.2.0"
 
 [build]
 system = "autotools"
@@ -27,7 +27,7 @@ arguments = [
 ]
 
 [build.environment]
-# Keep the host GCC from loading this toolchain's older MPFR into cc1.
+# Keep the host GCC from loading this toolchain's MPFR into cc1.
 LD_LIBRARY_PATH = "${TINYHPC_HOST_LD_LIBRARY_PATH}"
 # Embed rpaths so GCC's internal executables resolve their support libraries.
 LDFLAGS = "-Wl,-rpath,${ISL_ROOT}/lib -Wl,-rpath,${MPC_ROOT}/lib -Wl,-rpath,${MPFR_ROOT}/lib -Wl,-rpath,${GMP_ROOT}/lib"

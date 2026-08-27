@@ -14,6 +14,7 @@ from recipe import RecipeError, Repository, Runtime, apply_configuration  # noqa
 
 QE_SPEC = "gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6"
 OPENMX_SPEC = "gcc/9.5.0/openmpi/5.0.8/openmx/4.0.1"
+GCC16_SPEC = "gcc/16.2.0"
 
 
 class HierarchyTests(unittest.TestCase):
@@ -31,6 +32,7 @@ class HierarchyTests(unittest.TestCase):
                 "gmp/6.1.0",
                 "mpfr/4.1.0",
                 "mpc/1.2.1",
+                "isl/0.24",
                 "gcc/9.5.0",
                 "gcc/9.5.0/openmpi/5.0.8",
                 "gcc/9.5.0/openblas/0.3.30",
@@ -47,6 +49,7 @@ class HierarchyTests(unittest.TestCase):
                 "gmp/6.1.0",
                 "mpfr/4.1.0",
                 "mpc/1.2.1",
+                "isl/0.24",
                 "gcc/9.5.0",
                 "gcc/9.5.0/openmpi/5.0.8",
                 "gcc/9.5.0/fftw/3.3.10",
@@ -55,6 +58,27 @@ class HierarchyTests(unittest.TestCase):
                 OPENMX_SPEC,
             ],
         )
+
+    def test_gcc_16_plan_uses_matching_prerequisites(self):
+        self.assertEqual(
+            self.repository.plan(GCC16_SPEC),
+            [
+                "gmp/6.3.0",
+                "mpfr/4.2.2",
+                "mpc/1.3.1",
+                "isl/0.24",
+                GCC16_SPEC,
+            ],
+        )
+
+    def test_gcc_toolchains_enable_graphite_and_runtime_libraries(self):
+        for spec in ("gcc/9.5.0", GCC16_SPEC):
+            with self.subTest(spec=spec):
+                recipe = self.repository.get(spec)
+                self.assertIn("isl/0.24", self.repository.dependencies(recipe))
+                self.assertIn("--with-isl=${ISL_ROOT}", recipe.build["arguments"])
+                modulefile = Runtime(self.repository).render_modulefile(recipe)
+                self.assertIn('prepend_path("LD_LIBRARY_PATH", pathJoin(root, "lib64"))', modulefile)
 
     def test_parent_dependency_is_implicit(self):
         openmpi = self.repository.get("gcc/9.5.0/openmpi/5.0.8")

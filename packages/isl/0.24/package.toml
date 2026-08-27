@@ -1,0 +1,35 @@
+schema = 1
+
+[package]
+name = "isl"
+version = "0.24"
+description = "Integer Set Library 0.24"
+dependencies = []
+
+[source]
+url = "https://libisl.sourceforge.io/isl-0.24.tar.bz2"
+sha256 = "fcf78dd9656c10eb8cf9fbd5f59a0b6b01386205fe1934b3b287a0a1898145c0"
+directory = "isl-0.24"
+
+[build]
+system = "autotools"
+# Use the bundled imath backend so one ISL build can serve both GCC stacks
+# without loading either stack's incompatible libgmp at compiler runtime.
+arguments = ["--with-int=imath"]
+
+[module]
+root_environment = ["ISL_ROOT"]
+
+[module.paths]
+LD_LIBRARY_PATH = ["lib"]
+LIBRARY_PATH = ["lib"]
+CPATH = ["include"]
+PKG_CONFIG_PATH = ["lib/pkgconfig"]
+
+[[tests]]
+type = "file"
+path = "include/isl/version.h"
+
+[[tests]]
+type = "file"
+path = "lib/libisl.so"
