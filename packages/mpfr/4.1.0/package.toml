@@ -13,6 +13,7 @@ directory = "mpfr-4.1.0"
 
 [build]
 system = "autotools"
+# Build against the just-installed GMP prefix.
 arguments = ["--with-gmp=${GMP_ROOT}"]
 
 [module]

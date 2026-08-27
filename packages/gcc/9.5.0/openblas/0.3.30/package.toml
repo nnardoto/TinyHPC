@@ -13,6 +13,8 @@ directory = "OpenBLAS-0.3.30"
 
 [build]
 system = "make"
+# Runtime CPU detection with pthreads (no OpenMP, avoiding a second threading
+# layer); rpaths point at the compiler runtime.
 arguments = [
   "CC=${CC}",
   "FC=${FC}",
@@ -41,3 +43,7 @@ path = "lib/libopenblas.so"
 [[tests]]
 type = "directory"
 path = "include"
+
+[[tests]]
+type = "script"
+path = "smoke-test.sh"

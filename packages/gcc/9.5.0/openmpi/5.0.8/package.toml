@@ -13,6 +13,7 @@ directory = "openmpi-5.0.8"
 
 [build]
 system = "autotools"
+# Disable usempif08 to keep this Open MPI build compatible with GCC 9.
 arguments = ["--disable-mpi-fortran-usempif08"]
 
 [module]

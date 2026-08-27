@@ -15,6 +15,9 @@ directory = "scalapack-2.2.0"
 [build]
 system = "cmake"
 requires = ["cmake"]
+# BUILD_SHARED_LIBS plus explicit BLAS/LAPACK libs yield a shared library; the
+# policy minimum lets newer CMake configure this older project. Embedded
+# rpaths make OpenBLAS/MPI resolvable at runtime.
 arguments = [
   "-DCMAKE_BUILD_TYPE=Release",
   "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
@@ -41,3 +44,7 @@ PKG_CONFIG_PATH = ["lib/pkgconfig"]
 [[tests]]
 type = "file"
 path = "lib/libscalapack.so"
+
+[[tests]]
+type = "script"
+path = "smoke-test.sh"

@@ -13,6 +13,8 @@ directory = "gcc-9.5.0"
 
 [build]
 system = "autotools"
+# Skip the three-stage bootstrap for speed and drop multilib/libsanitizer/ISL
+# to keep the toolchain self-contained on the build host.
 arguments = [
   "--enable-languages=c,c++,fortran",
   "--disable-multilib",
@@ -27,6 +29,7 @@ arguments = [
 [build.environment]
 # Keep the host GCC from loading this toolchain's older MPFR into cc1.
 LD_LIBRARY_PATH = "${TINYHPC_HOST_LD_LIBRARY_PATH}"
+# Embed rpaths so cc1/cc1plus resolve GMP/MPFR/MPC without LD_LIBRARY_PATH.
 LDFLAGS = "-Wl,-rpath,${MPC_ROOT}/lib -Wl,-rpath,${MPFR_ROOT}/lib -Wl,-rpath,${GMP_ROOT}/lib"
 
 [module]

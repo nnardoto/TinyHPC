@@ -16,6 +16,7 @@ system = "autotools"
 arguments = []
 
 [build.environment]
+# Use the system compiler with C17 so the host GCC (not a toolchain) builds GMP.
 CC = "gcc"
 CFLAGS = "-std=gnu17"
 

@@ -21,6 +21,7 @@ arguments = [
   "CC=${CC}",
   "F77=${FC}",
   "FC=${FC}",
+  # Embed rpaths to the compiler runtime so the shared libraries resolve.
   "LDFLAGS=-Wl,-rpath,${GCC_ROOT}/lib64 -Wl,-rpath,${GCC_ROOT}/lib",
 ]
 
@@ -45,3 +46,7 @@ path = "lib/libfftw3_omp.so"
 [[tests]]
 type = "file"
 path = "include/fftw3.h"
+
+[[tests]]
+type = "script"
+path = "smoke-test.sh"

@@ -13,6 +13,7 @@ directory = "mpc-1.2.1"
 
 [build]
 system = "autotools"
+# Build against the just-installed GMP/MPFR prefixes.
 arguments = ["--with-gmp=${GMP_ROOT}", "--with-mpfr=${MPFR_ROOT}"]
 
 [build.environment]
