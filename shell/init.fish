@@ -1,7 +1,10 @@
 # TinyHPC user interface for Fish. Source this file; do not execute it.
 
+# Wrap everything in a function so local variables do not leak into the
+# user's shell; the function is erased at the end.
 function __tinyhpc_initialize
     set -l tinyhpc_home (realpath (dirname (status filename))/..)
+    # Set a default TINYHPC_CONFIG from the XDG path if none is set.
     if not set -q TINYHPC_CONFIG
         if set -q XDG_CONFIG_HOME
             set -l default_config $XDG_CONFIG_HOME/tinyhpc/config.toml
@@ -13,8 +16,10 @@ function __tinyhpc_initialize
         end
     end
 
+    # Evaluate the environment emitted by the CLI into the current shell.
     $tinyhpc_home/bin/hpc env --shell fish | source
 
+    # Fall back to sourcing a system Lmod init script if "module" is unavailable.
     if not type -q module
         for lmod_init in \
             /usr/share/fish/vendor_conf.d/modules.fish \

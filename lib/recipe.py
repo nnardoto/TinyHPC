@@ -220,6 +220,8 @@ class Repository:
             die(f"pacote desconhecido: {spec}")
 
     def parent(self, recipe: Recipe) -> Recipe | None:
+        # The immediate parent is the longest name/version prefix that is
+        # itself a recipe, encoding the toolchain hierarchy (e.g. gcc/9.5.0).
         parts = recipe.spec.split("/")
         candidates = []
         for index in range(2, len(parts), 2):
@@ -233,6 +235,8 @@ class Repository:
         if dependency in self.recipes:
             return dependency
 
+        # Resolve a bare dependency relative to the requesting recipe by
+        # walking up its hierarchy, matching the generated module layout.
         context = recipe.spec.split("/")[:-2]
         while context:
             candidate = "/".join(context + dependency.split("/"))
@@ -242,6 +246,8 @@ class Repository:
         die(f"{recipe.spec}: dependência não encontrada: {dependency}")
 
     def dependencies(self, recipe: Recipe) -> list[str]:
+        # Effective dependencies: the implicit parent plus explicit deps,
+        # deduplicated while preserving order.
         result: list[str] = []
         parent = self.parent(recipe)
         if parent:
@@ -285,6 +291,8 @@ class Repository:
         reject_unknown("source", recipe.source, allowed_fields["source"])
         reject_unknown("build", recipe.build, allowed_fields["build"])
         reject_unknown("module", recipe.module, allowed_fields["module"])
+        # Specs are name/version pairs; the final pair must match the declared
+        # package name and version.
         parts = recipe.spec.split("/")
         if recipe.schema != SCHEMA_VERSION:
             errors.append(f"schema deve ser {SCHEMA_VERSION}")
@@ -330,6 +338,8 @@ class Repository:
             self.plan(recipe.spec)
 
     def plan(self, spec: str) -> list[str]:
+        # Depth-first topological sort producing a build order with every
+        # dependency before its dependents. "visiting" also detects cycles.
         ordered: list[str] = []
         visiting: list[str] = []
         visited: set[str] = set()
@@ -392,6 +402,8 @@ class Runtime:
         return self.marker_path(recipe).is_file()
 
     def expand(self, value: str, recipe: Recipe) -> str:
+        # Substitute {prefix}/{source}/{build}/{jobs} placeholders, then expand
+        # any remaining $VARS (e.g. ${GMP_ROOT}) from the environment.
         replacements = {
             "{prefix}": str(self.prefix(recipe)),
             "{source}": str(self.source_path(recipe)),
@@ -429,6 +441,8 @@ class Runtime:
         note(f"extraindo {archive.name}")
         with tarfile.open(archive) as bundle:
             base = self.sources.resolve()
+            # Reject members that resolve outside the source tree before any
+            # extraction, blocking path traversal via crafted tarballs.
             for member in bundle.getmembers():
                 target = (self.sources / member.name).resolve()
                 if base != target and base not in target.parents:
@@ -467,6 +481,8 @@ class Runtime:
         subprocess.run(command, cwd=cwd, env=environment, check=True)
 
     def build(self, recipe: Recipe, source: Path) -> None:
+        # Dispatch to the configured build system; each branch expands
+        # placeholders and runs configure/build/install (or the equivalent).
         system = recipe.build["system"]
         prefix = self.prefix(recipe)
         build = self.build_path(recipe)
@@ -549,6 +565,8 @@ class Runtime:
             lines.append(f"family({lua_quote(str(family))})")
         for dependency in dependencies:
             lines.append(f"depends_on({lua_quote(dependency)})")
+        # Expose this spec's own modulefiles subdir so nested toolchains are
+        # discoverable through hierarchical MODULEPATH lookup.
         if self.repository.children(recipe):
             lines.append(
                 f"prepend_path(\"MODULEPATH\", pathJoin(hpc_root, {lua_quote('modulefiles/' + recipe.spec)}))"
@@ -616,6 +634,8 @@ class Runtime:
 
 
 def replace_source_checksum(path: Path, digest: str) -> None:
+    # Rewrite only the sha256 value inside the [source] table, leaving the
+    # rest of the file verbatim (used by "hpc lock").
     text = path.read_text()
     pattern = re.compile(r"(?ms)(^\[source\]\s*.*?^sha256\s*=\s*)[^\n]+")
     updated, count = pattern.subn(lambda match: match.group(1) + json.dumps(digest), text, count=1)

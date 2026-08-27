@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Install TinyHPC: ensure Lmod, copy the tree into TINYHPC_HOME, create the
+# HPC directory layout, and register per-shell integration files.
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 lmod_init_bash=""
 
@@ -23,12 +25,13 @@ find_python() {
 
 python="$(find_python)"
 
+# Normalize a path via Python so expansion/resolution matches the CLI's view.
 canonical_path() {
     "$python" -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).expanduser().resolve())' "$1"
 }
 
-# Lê defaults, configuração do usuário e overrides de ambiente pelo mesmo
-# parser usado pelo CLI. Nenhum parser TOML é duplicado em Bash.
+# Load defaults, user config, and environment overrides through the same
+# parser the CLI uses; no TOML parsing is duplicated in Bash.
 settings="$("$python" "$repo_root/lib/recipe.py" --repo "$repo_root" environment)"
 while IFS=$'\t' read -r key value; do
     [[ -n "$key" ]] || continue
@@ -66,6 +69,7 @@ install_system_package() {
     fi
 }
 
+# Locate and source an Lmod init script, recording its path for reuse below.
 try_init_lmod() {
     if type module >/dev/null 2>&1; then
         return 0
@@ -97,6 +101,8 @@ try_init_lmod() {
     return 1
 }
 
+# Ensure Lmod exists: reuse a system install if found, otherwise install the
+# distribution package and initialize it.
 if ! try_init_lmod; then
     echo "==> Lmod não encontrado; instalando dependência do TinyHPC"
     install_system_package lmod lmod Lmod lmod
@@ -111,6 +117,7 @@ if [[ -z "$lmod_init_bash" ]]; then
     done
 fi
 
+# Copy the repository into TINYHPC_HOME unless it is already installed there.
 if [[ "$(canonical_path "$repo_root")" != "$(canonical_path "$tinyhpc_home")" ]]; then
     echo "==> instalando TinyHPC em $tinyhpc_home"
     privileged rm -rf "$tinyhpc_home"
@@ -126,6 +133,7 @@ if [[ -n "$tinyhpc_sudo" || $EUID -eq 0 ]]; then
     privileged chown -R "$USER:$(id -gn)" "$tinyhpc_root"
 fi
 
+# Seed a user config.toml on first run; an existing config is left untouched.
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 config_path="${TINYHPC_CONFIG:-$config_home/tinyhpc/config.toml}"
 mkdir -p "$(dirname "$config_path")"
@@ -147,6 +155,8 @@ else
     echo "==> configuração existente preservada em $config_path"
 fi
 
+# Generate per-shell wrapper files that set TINYHPC_CONFIG and source the
+# matching init script.
 interface_dir="$config_home/tinyhpc"
 conf_bash="$interface_dir/bashrc"
 conf_zsh="$interface_dir/zshrc"
@@ -168,6 +178,7 @@ conf_fish="$interface_dir/fish.fish"
     printf 'source %s\n' "$(quote "$tinyhpc_home/shell/init.fish")"
 } > "$conf_fish"
 
+# Append a "source" line to a shell rc file only if it is not already present.
 append_source_line() {
     local rc_file="$1" source_file="$2" line
     printf -v line 'source %q' "$source_file"
@@ -182,6 +193,7 @@ fish_conf_dir="$config_home/fish/conf.d"
 mkdir -p "$fish_conf_dir"
 printf 'source %s\n' "$(quote "$conf_fish")" > "$fish_conf_dir/tinyhpc.fish"
 
+# Apply the environment inside this bootstrap process before querying Lmod.
 export TINYHPC_CONFIG="$config_path"
 eval "$("$tinyhpc_home/bin/hpc" env)"
 module use "$HPC_MODULEFILES"

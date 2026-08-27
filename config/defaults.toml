@@ -1,3 +1,4 @@
+# Built-in defaults, overridden by the user config referenced via TINYHPC_CONFIG.
 schema = 1
 
 [paths]

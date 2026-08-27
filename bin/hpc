@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -o pipefail
 
+# Resolve the repository root from this script's location (following symlinks)
+# so the CLI works from any directory, including via the /usr/local/bin/hpc link.
 script="$(readlink -f "${BASH_SOURCE[0]}")"
 repo="$(cd "$(dirname "$script")/.." && pwd -P)"
 unset script
@@ -35,6 +37,9 @@ recipe() {
     "$hpc_python" "$hpc_recipe" --repo "$repo" "$@"
 }
 
+# Load the effective configuration through the Python parser and export it,
+# so Bash never duplicates TOML parsing. The environment subcommand emits
+# tab-separated KEY<TAB>VALUE lines that are assigned and exported below.
 settings="$(recipe environment)" || hpc_die "não foi possível carregar a configuração"
 while IFS=$'\t' read -r key value; do
     [[ -n "$key" ]] || continue
@@ -43,6 +48,8 @@ while IFS=$'\t' read -r key value; do
 done <<< "$settings"
 unset settings key value
 
+# Make the "module" command available once per process, preferring an explicit
+# TINYHPC_LMOD_INIT override before probing common Lmod install locations.
 hpc_init_lmod() {
     if type module >/dev/null 2>&1; then
         return 0
@@ -83,6 +90,7 @@ hpc_require_layout() {
     done
 }
 
+# Install one spec and everything it needs, in topological order.
 hpc_install_spec() {
     local spec="$1" plan item dependencies dependency log
     plan="$(recipe plan "$spec")" || return 1
@@ -92,6 +100,8 @@ hpc_install_spec() {
     module use "$HPC_MODULEFILES" || return 1
     export TINYHPC_HOST_LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
 
+    # The plan lists dependencies before their dependents, so a single forward
+    # pass always has each package's modules loaded before its own build.
     while IFS= read -r item; do
         [[ -n "$item" ]] || continue
         if recipe installed "$item"; then
@@ -100,6 +110,8 @@ hpc_install_spec() {
             continue
         fi
 
+        # Purge before each build so modules from earlier items cannot leak
+        # into this item's dependency set or build environment.
         module purge || return 1
         module use "$HPC_MODULEFILES" || return 1
         dependencies="$(recipe dependencies "$item")" || return 1
@@ -108,6 +120,7 @@ hpc_install_spec() {
             module load "$dependency" || hpc_die "não foi possível carregar módulo de $dependency"
         done <<< "$dependencies"
 
+        # Key the log by the slash-separated spec, with slashes replaced by dashes.
         log="$HPC_LOGS/${item//\//-}.log"
         hpc_note "instalando $item"
         recipe install-one "$item" 2>&1 | tee "$log"

@@ -1,12 +1,16 @@
 # TinyHPC user interface for Bash. Source this file; do not execute it.
 
+# Derive the repo path from this script and default TINYHPC_CONFIG to the
+# per-user config when unset.
 _tinyhpc_home="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 _tinyhpc_default_config="${XDG_CONFIG_HOME:-$HOME/.config}/tinyhpc/config.toml"
 if [[ -z "${TINYHPC_CONFIG:-}" && -f "$_tinyhpc_default_config" ]]; then
     export TINYHPC_CONFIG="$_tinyhpc_default_config"
 fi
+# Load the environment computed by the CLI into this shell.
 eval "$("$_tinyhpc_home/bin/hpc" env --shell bash)"
 
+# Fall back to sourcing a system Lmod init script if "module" is unavailable.
 if ! type module >/dev/null 2>&1; then
     for _tinyhpc_lmod in \
         /etc/profile.d/modules.sh \
