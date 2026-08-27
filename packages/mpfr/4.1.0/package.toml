@@ -1,0 +1,33 @@
+schema = 1
+
+[package]
+name = "mpfr"
+version = "4.1.0"
+description = "GNU MPFR 4.1.0"
+dependencies = ["gmp/6.1.0"]
+
+[source]
+url = "https://ftp.gnu.org/gnu/mpfr/mpfr-4.1.0.tar.bz2"
+sha256 = "feced2d430dd5a97805fa289fed3fc8ff2b094c02d05287fd6133e7f1f0ec926"
+directory = "mpfr-4.1.0"
+
+[build]
+system = "autotools"
+arguments = ["--with-gmp=${GMP_ROOT}"]
+
+[module]
+root_environment = ["MPFR_ROOT"]
+
+[module.paths]
+LD_LIBRARY_PATH = ["lib"]
+LIBRARY_PATH = ["lib"]
+CPATH = ["include"]
+PKG_CONFIG_PATH = ["lib/pkgconfig"]
+
+[[tests]]
+type = "file"
+path = "include/mpfr.h"
+
+[[tests]]
+type = "file"
+path = "lib/libmpfr.so"

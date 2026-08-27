@@ -1,5 +1,22 @@
 # Changelog
 
+## Próxima versão — receitas TOML hierárquicas
+
+- adiciona manifests `package.toml` com validação de schema e checksum;
+- deriva compilador, MPI, prefixo e modulefile da hierarquia de diretórios;
+- resolve dependências-pai implicitamente e dependências laterais no contexto mais próximo;
+- adiciona builders declarativos `autotools`, `cmake`, `make` e `script`;
+- adiciona `hpc plan`, `hpc validate`, `hpc new`, `hpc lock` e geração automática de modulefiles;
+- migra o motor, CLI, bootstrap e scripts de extensão para Bash;
+- adiciona interfaces sourceáveis de ambiente para Bash, Zsh e Fish;
+- substitui `config/defaults.conf` por configuração TOML com overrides por usuário e ambiente;
+- migra a stack GMP, MPFR, MPC, GCC, Open MPI, OpenBLAS, FFTW e ScaLAPACK;
+- adiciona Quantum ESPRESSO 7.6 como objetivo de integração da stack completa;
+- inclui parser TOML vendorizado para Python 3.9 e 3.10;
+- resolve o caminho real do CLI antes de derivar `TINYHPC_HOME`, permitindo uso seguro via `/usr/local/bin/hpc`;
+- inicializa Lmod internamente no runtime Bash do CLI, tornando `hpc doctor` e `hpc install` independentes da shell do usuário;
+- aceita `TINYHPC_LMOD_INIT` como override para instalações de Lmod fora dos caminhos padrão.
+
 ## v0.6.0
 
 - add complete FFTW 3.3.10 GCC 9 recipe

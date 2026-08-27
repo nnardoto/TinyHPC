@@ -2,31 +2,69 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-tinyhpc_home="${TINYHPC_HOME:-/opt/tinyhpc}"
-tinyhpc_root="${TINYHPC_ROOT:-/opt/hpc}"
 lmod_init_bash=""
+
+die() {
+    printf 'ERROR: %s\n' "$*" >&2
+    exit 1
+}
+
+find_python() {
+    local candidate
+    for candidate in python3.13 python3.12 python3.11 python3.10 python3.9 python3; do
+        command -v "$candidate" >/dev/null 2>&1 || continue
+        if "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' 2>/dev/null; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    die "Python 3.9 ou mais recente não encontrado"
+}
+
+python="$(find_python)"
+
+canonical_path() {
+    "$python" -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).expanduser().resolve())' "$1"
+}
+
+# Lê defaults, configuração do usuário e overrides de ambiente pelo mesmo
+# parser usado pelo CLI. Nenhum parser TOML é duplicado em Bash.
+settings="$("$python" "$repo_root/lib/recipe.py" --repo "$repo_root" environment)"
+while IFS=$'\t' read -r key value; do
+    [[ -n "$key" ]] || continue
+    printf -v "$key" '%s' "$value"
+    export "$key"
+done <<< "$settings"
+unset settings key value
+
+tinyhpc_home="$TINYHPC_HOME"
+tinyhpc_root="$TINYHPC_ROOT"
+tinyhpc_bin="${TINYHPC_BIN:-/usr/local/bin/hpc}"
+tinyhpc_sudo="${TINYHPC_SUDO-sudo}"
+
+privileged() {
+    if [[ -n "$tinyhpc_sudo" ]]; then
+        "$tinyhpc_sudo" "$@"
+    else
+        "$@"
+    fi
+}
 
 install_system_package() {
     local arch_name="$1" deb_name="$2" fedora_name="$3" suse_name="$4"
     if command -v pacman >/dev/null 2>&1; then
-        sudo pacman -S --needed "$arch_name"
+        privileged pacman -S --needed "$arch_name"
     elif command -v apt-get >/dev/null 2>&1; then
-        sudo apt-get update
-        sudo apt-get install -y "$deb_name"
+        privileged apt-get update
+        privileged apt-get install -y "$deb_name"
     elif command -v dnf >/dev/null 2>&1; then
-        sudo dnf install -y "$fedora_name"
+        privileged dnf install -y "$fedora_name"
     elif command -v zypper >/dev/null 2>&1; then
-        sudo zypper --non-interactive install "$suse_name"
+        privileged zypper --non-interactive install "$suse_name"
     else
-        echo "ERROR: gerenciador de pacotes não suportado." >&2
-        return 1
+        die "gerenciador de pacotes não suportado"
     fi
 }
-
-if ! command -v fish >/dev/null 2>&1; then
-    echo "==> Fish não encontrado; instalando runtime do TinyHPC"
-    install_system_package fish fish fish fish
-fi
 
 try_init_lmod() {
     if type module >/dev/null 2>&1; then
@@ -62,7 +100,7 @@ try_init_lmod() {
 if ! try_init_lmod; then
     echo "==> Lmod não encontrado; instalando dependência do TinyHPC"
     install_system_package lmod lmod Lmod lmod
-    try_init_lmod || { echo "ERROR: Lmod instalado, mas não foi possível inicializá-lo." >&2; exit 1; }
+    try_init_lmod || die "Lmod instalado, mas não foi possível inicializá-lo"
 else
     echo "==> Lmod já disponível"
 fi
@@ -73,48 +111,89 @@ if [[ -z "$lmod_init_bash" ]]; then
     done
 fi
 
-# Instala uma cópia do gerenciador separada do clone de desenvolvimento.
-if [[ "$(realpath "$repo_root")" != "$(realpath -m "$tinyhpc_home")" ]]; then
+if [[ "$(canonical_path "$repo_root")" != "$(canonical_path "$tinyhpc_home")" ]]; then
     echo "==> instalando TinyHPC em $tinyhpc_home"
-    sudo rm -rf "$tinyhpc_home"
-    sudo mkdir -p "$tinyhpc_home"
-    tar --exclude=.git -C "$repo_root" -cf - . | sudo tar -C "$tinyhpc_home" -xf -
+    privileged rm -rf "$tinyhpc_home"
+    privileged mkdir -p "$tinyhpc_home"
+    tar --exclude=.git -C "$repo_root" -cf - . | privileged tar -C "$tinyhpc_home" -xf -
 fi
-sudo chmod +x "$tinyhpc_home/bin/hpc" "$tinyhpc_home/bootstrap.sh" "$tinyhpc_home/bootstrap.fish"
-sudo mkdir -p /usr/local/bin
-sudo ln -sfn "$tinyhpc_home/bin/hpc" /usr/local/bin/hpc
+privileged chmod +x "$tinyhpc_home/bin/hpc" "$tinyhpc_home/bootstrap.sh"
+privileged mkdir -p "$(dirname "$tinyhpc_bin")"
+privileged ln -sfn "$tinyhpc_home/bin/hpc" "$tinyhpc_bin"
 
-sudo mkdir -p "$tinyhpc_root"/{cache,src,build,software,modulefiles,logs}
-sudo chown -R "$USER:$(id -gn)" "$tinyhpc_root"
+privileged mkdir -p "$tinyhpc_root"/{cache,src,build,software,modulefiles,logs}
+if [[ -n "$tinyhpc_sudo" || $EUID -eq 0 ]]; then
+    privileged chown -R "$USER:$(id -gn)" "$tinyhpc_root"
+fi
 
-mkdir -p "$HOME/.config/tinyhpc"
-conf="$HOME/.config/tinyhpc/bashrc"
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+config_path="${TINYHPC_CONFIG:-$config_home/tinyhpc/config.toml}"
+mkdir -p "$(dirname "$config_path")"
+quote() { "$python" -c 'import json, sys; print(json.dumps(sys.argv[1]))' "$1"; }
+if [[ ! -f "$config_path" ]]; then
+    {
+        echo "schema = 1"
+        echo
+        echo "[paths]"
+        printf 'home = %s\n' "$(quote "$tinyhpc_home")"
+        printf 'root = %s\n' "$(quote "$tinyhpc_root")"
+        echo
+        echo "[build]"
+        printf 'jobs = %s\n' "$HPC_JOBS"
+        printf 'profile = %s\n' "$(quote "$HPC_PROFILE")"
+    } > "$config_path"
+    echo "==> configuração criada em $config_path"
+else
+    echo "==> configuração existente preservada em $config_path"
+fi
+
+interface_dir="$config_home/tinyhpc"
+conf_bash="$interface_dir/bashrc"
+conf_zsh="$interface_dir/zshrc"
+conf_fish="$interface_dir/fish.fish"
+
 {
     echo "# gerado por TinyHPC"
-    printf 'export TINYHPC_HOME=%q\n' "$tinyhpc_home"
-    printf 'export TINYHPC_ROOT=%q\n' "$tinyhpc_root"
-    printf 'export TINYHPC_REPO=%q\n' "$tinyhpc_home"
-    printf 'export HPC_ROOT=%q\n' "$tinyhpc_root"
-    if [[ -n "$lmod_init_bash" ]]; then
-        echo 'if ! type module >/dev/null 2>&1; then'
-        printf '    source %q\n' "$lmod_init_bash"
-        echo 'fi'
+    printf 'export TINYHPC_CONFIG=%q\n' "$config_path"
+    printf 'source %q\n' "$tinyhpc_home/shell/init.bash"
+} > "$conf_bash"
+{
+    echo "# gerado por TinyHPC"
+    printf 'export TINYHPC_CONFIG=%q\n' "$config_path"
+    printf 'source %q\n' "$tinyhpc_home/shell/init.zsh"
+} > "$conf_zsh"
+{
+    echo "# gerado por TinyHPC"
+    printf 'set -gx TINYHPC_CONFIG %s\n' "$(quote "$config_path")"
+    printf 'source %s\n' "$(quote "$tinyhpc_home/shell/init.fish")"
+} > "$conf_fish"
+
+append_source_line() {
+    local rc_file="$1" source_file="$2" line
+    printf -v line 'source %q' "$source_file"
+    if ! grep -Fqx "$line" "$rc_file" 2>/dev/null; then
+        printf '\n# TinyHPC\n%s\n' "$line" >> "$rc_file"
     fi
-    printf 'module use %q\n' "$tinyhpc_root/modulefiles"
-} > "$conf"
+}
 
-bashrc="$HOME/.bashrc"
-source_line='[[ -f "$HOME/.config/tinyhpc/bashrc" ]] && source "$HOME/.config/tinyhpc/bashrc"'
-if ! grep -Fqx "$source_line" "$bashrc" 2>/dev/null; then
-    printf '\n# TinyHPC\n%s\n' "$source_line" >> "$bashrc"
-fi
+append_source_line "$HOME/.bashrc" "$conf_bash"
+append_source_line "$HOME/.zshrc" "$conf_zsh"
+fish_conf_dir="$config_home/fish/conf.d"
+mkdir -p "$fish_conf_dir"
+printf 'source %s\n' "$(quote "$conf_fish")" > "$fish_conf_dir/tinyhpc.fish"
 
-export TINYHPC_HOME="$tinyhpc_home" TINYHPC_ROOT="$tinyhpc_root" TINYHPC_REPO="$tinyhpc_home" HPC_ROOT="$tinyhpc_root"
-module use "$tinyhpc_root/modulefiles"
+export TINYHPC_CONFIG="$config_path"
+eval "$("$tinyhpc_home/bin/hpc" env)"
+module use "$HPC_MODULEFILES"
 
-echo "==> TinyHPC instalado em $tinyhpc_home"
-echo "==> CLI: /usr/local/bin/hpc"
-echo "==> stack HPC: $tinyhpc_root"
-echo "==> configuração Bash: $conf"
+echo "==> TinyHPC instalado em $TINYHPC_HOME"
+echo "==> CLI: $tinyhpc_bin"
+echo "==> stack HPC: $TINYHPC_ROOT"
+echo "==> configuração TOML: $config_path"
+echo "==> interface Bash: $conf_bash"
+echo "==> interface Zsh: $conf_zsh"
+echo "==> interface Fish: $conf_fish"
 echo "==> Lmod: $(module --version 2>&1 | head -n1)"
-echo "Rode: source '$conf'"
+echo "Bash: source '$conf_bash'"
+echo "Zsh:  source '$conf_zsh'"
+echo "Fish: source '$conf_fish'"

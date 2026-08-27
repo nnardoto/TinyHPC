@@ -1,0 +1,48 @@
+schema = 1
+
+[package]
+name = "quantum-espresso"
+version = "7.6"
+description = "Quantum ESPRESSO 7.6 with Open MPI, OpenBLAS, FFTW and ScaLAPACK"
+dependencies = ["openblas/0.3.30", "fftw/3.3.10", "scalapack/2.2.0"]
+
+[source]
+url = "https://gitlab.com/QEF/q-e/-/archive/qe-7.6/q-e-qe-7.6.tar.gz"
+archive = "q-e-qe-7.6.tar.gz"
+sha256 = "945c8f16ab330c8f0b30f4de1a9a088b85038476fcd819394e641f4d2d8b7d51"
+directory = "q-e-qe-7.6"
+
+[build]
+system = "cmake"
+requires = ["cmake", "git"]
+arguments = [
+  "-DCMAKE_BUILD_TYPE=Release",
+  "-DCMAKE_C_COMPILER=${MPI_ROOT}/bin/mpicc",
+  "-DCMAKE_Fortran_COMPILER=${MPI_ROOT}/bin/mpifort",
+  "-DCMAKE_PREFIX_PATH=${OPENBLAS_ROOT};${FFTW_ROOT};${SCALAPACK_ROOT}",
+  "-DCMAKE_INSTALL_RPATH=${SCALAPACK_ROOT}/lib;${OPENBLAS_ROOT}/lib;${FFTW_ROOT}/lib;${MPI_ROOT}/lib;${GCC_ROOT}/lib64;${GCC_ROOT}/lib",
+  "-DBLA_VENDOR=OpenBLAS",
+  "-DLAPACK_LIBRARIES=${OPENBLAS_ROOT}/lib/libopenblas.so",
+  "-DSCALAPACK_LIBRARIES=${SCALAPACK_ROOT}/lib/libscalapack.so",
+  "-DFFTW3_ROOT=${FFTW_ROOT}",
+  "-DQE_FFTW_VENDOR=FFTW3",
+  "-DQE_ENABLE_MPI=ON",
+  "-DQE_ENABLE_OPENMP=ON",
+  "-DQE_ENABLE_SCALAPACK=ON",
+  "-DQE_ENABLE_TEST=OFF",
+]
+
+[module]
+root_environment = ["QE_ROOT"]
+
+[module.paths]
+PATH = ["bin"]
+LD_LIBRARY_PATH = ["lib"]
+
+[[tests]]
+type = "executable"
+path = "bin/pw.x"
+
+[[tests]]
+type = "executable"
+path = "bin/ph.x"

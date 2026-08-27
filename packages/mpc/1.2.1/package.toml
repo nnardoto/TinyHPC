@@ -1,0 +1,37 @@
+schema = 1
+
+[package]
+name = "mpc"
+version = "1.2.1"
+description = "GNU MPC 1.2.1"
+dependencies = ["gmp/6.1.0", "mpfr/4.1.0"]
+
+[source]
+url = "https://ftp.gnu.org/gnu/mpc/mpc-1.2.1.tar.gz"
+sha256 = "17503d2c395dfcf106b622dc142683c1199431d095367c6aacba6eec30340459"
+directory = "mpc-1.2.1"
+
+[build]
+system = "autotools"
+arguments = ["--with-gmp=${GMP_ROOT}", "--with-mpfr=${MPFR_ROOT}"]
+
+[build.environment]
+# Avoid injecting MPFR 4.1 into the host GCC's own cc1 process.
+LD_LIBRARY_PATH = "${TINYHPC_HOST_LD_LIBRARY_PATH}"
+
+[module]
+root_environment = ["MPC_ROOT"]
+
+[module.paths]
+LD_LIBRARY_PATH = ["lib"]
+LIBRARY_PATH = ["lib"]
+CPATH = ["include"]
+PKG_CONFIG_PATH = ["lib/pkgconfig"]
+
+[[tests]]
+type = "file"
+path = "include/mpc.h"
+
+[[tests]]
+type = "file"
+path = "lib/libmpc.so"

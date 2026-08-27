@@ -1,0 +1,9 @@
+schema = 1
+
+[paths]
+home = "/opt/tinyhpc"
+root = "/opt/hpc"
+
+[build]
+jobs = 4
+profile = "native"

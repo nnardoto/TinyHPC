@@ -18,20 +18,12 @@ The installed prefix is `software/openmx/4.0.1-gcc9`, while the recipe spec is
 kept as `openmx/4.0`; this makes `hpc install openmx/4.0` mean “install the
 supported OpenMX 4.0, including the current official patch level”.
 
-## First checksum lock
+## Legacy recipe
 
-OpenMX's download page does not publish SHA-256 values. Before the first build,
-lock the two official archives locally and commit the resulting manifest:
-
-```fish
-./tools/lock-checksum.fish openmx/4.0 --write
-```
-
-Then reinstall TinyHPC with `./bootstrap.fish` and run:
-
-```fish
-hpc install openmx/4.0
-```
+OpenMX's download page does not publish SHA-256 values. The checksums and Bash
+scripts in this directory are retained as migration material, but the new CLI
+only discovers hierarchical `package.toml` recipes. OpenMX must be converted
+before it can be installed by the new command path.
 
 The recipe installs the `openmx` executable, `DFT_DATA19`, and the upstream
 `work` examples. The smoke test runs the bundled H2O example with one MPI rank

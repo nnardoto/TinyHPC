@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Shared helpers for Bash package recipes.
-# Keep behavior aligned with lib/common.fish.
+# Shared helpers for Bash package recipes and script escape hatches.
 
 hpc_die() {
     printf 'ERROR: %s\n' "$*" >&2
@@ -12,38 +11,21 @@ hpc_note() {
 }
 
 hpc_load_defaults() {
-    local repo="$1" key value
-    local cfg="$repo/config/defaults.conf"
-    if [[ -f "$cfg" ]]; then
-        while IFS='=' read -r key value; do
-            key="${key#${key%%[![:space:]]*}}"
-            key="${key%${key##*[![:space:]]*}}"
-            value="${value#${value%%[![:space:]]*}}"
-            value="${value%${value##*[![:space:]]}}"
-            [[ -z "$key" || "$key" == \#* ]] && continue
-            case "$key" in
-                TINYHPC_HOME|TINYHPC_ROOT|HPC_JOBS|HPC_PROFILE)
-                    if [[ -z "${!key+x}" ]]; then
-                        printf -v "$key" '%s' "$value"
-                    fi
-                    ;;
-            esac
-        done < "$cfg"
-    fi
-
-    : "${TINYHPC_HOME:=/opt/tinyhpc}"
-    : "${TINYHPC_ROOT:=/opt/hpc}"
-    : "${HPC_JOBS:=4}"
-    : "${HPC_PROFILE:=native}"
-
-    export TINYHPC_HOME TINYHPC_ROOT HPC_JOBS HPC_PROFILE
-    export HPC_ROOT="$TINYHPC_ROOT"  # compatibilidade
-    export HPC_CACHE="$TINYHPC_ROOT/cache"
-    export HPC_SRC="$TINYHPC_ROOT/src"
-    export HPC_BUILD="$TINYHPC_ROOT/build"
-    export HPC_SOFTWARE="$TINYHPC_ROOT/software"
-    export HPC_MODULEFILES="$TINYHPC_ROOT/modulefiles"
-    export HPC_LOGS="$TINYHPC_ROOT/logs"
+    local repo="$1" candidate python="" key value settings
+    for candidate in python3.13 python3.12 python3.11 python3.10 python3.9 python3; do
+        command -v "$candidate" >/dev/null 2>&1 || continue
+        if "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' 2>/dev/null; then
+            python="$candidate"
+            break
+        fi
+    done
+    [[ -n "$python" ]] || hpc_die "Python 3.9 ou mais recente não encontrado"
+    settings="$("$python" "$repo/lib/recipe.py" --repo "$repo" environment)" || hpc_die "configuração inválida"
+    while IFS=$'\t' read -r key value; do
+        [[ -n "$key" ]] || continue
+        printf -v "$key" '%s' "$value"
+        export "$key"
+    done <<< "$settings"
 }
 
 hpc_read_manifest() {
