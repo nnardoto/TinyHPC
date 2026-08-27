@@ -1,0 +1,36 @@
+schema = 1
+
+[package]
+name = "quantum-espresso"
+version = "6.5"
+description = "Quantum ESPRESSO 6.5 optimized for GCC 16.2.0 with MPI and OpenMP"
+dependencies = ["openblas/0.3.30", "fftw/3.3.10", "scalapack/2.2.0"]
+
+[source]
+url = "https://gitlab.com/QEF/q-e/-/archive/qe-6.5/q-e-qe-6.5.tar.gz"
+archive = "q-e-qe-6.5.tar.gz"
+sha256 = "258b2a8a6280e86dad779e5c56356d8b35dc96d12ff33dabeee914bc03d6d602"
+directory = "q-e-qe-6.5"
+
+[build]
+system = "script"
+script = "build.sh"
+requires = ["make"]
+
+[module]
+root_environment = ["QE_ROOT"]
+
+[module.paths]
+PATH = ["bin"]
+
+[[tests]]
+type = "executable"
+path = "bin/pw.x"
+
+[[tests]]
+type = "executable"
+path = "bin/ph.x"
+
+[[tests]]
+type = "script"
+path = "smoke-test.sh"
