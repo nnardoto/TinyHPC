@@ -1,0 +1,9 @@
+#!/usr/bin/env fish
+set t (mktemp -d)
+printf '%s\n' '#include <mpfr.h>' 'int main(void){ mpfr_t x; mpfr_init2(x,128); mpfr_set_ui(x,42,MPFR_RNDN); mpfr_clear(x); return 0; }' > $t/test.c
+cc $t/test.c -I$HPC_PREFIX/include -I$GMP_ROOT/include -L$HPC_PREFIX/lib -L$GMP_ROOT/lib -Wl,-rpath,$HPC_PREFIX/lib -Wl,-rpath,$GMP_ROOT/lib -lmpfr -lgmp -o $t/test
+or exit 1
+$t/test
+set rc $status
+rm -rf $t
+exit $rc
