@@ -269,10 +269,11 @@ class Repository:
 
     def parent(self, recipe: Recipe) -> Recipe | None:
         # The immediate parent is the longest name/version prefix that is
-        # itself a recipe, encoding the toolchain hierarchy (e.g. gcc/9.5.0).
+        # itself a recipe. Specs may start with a category such as "core".
         parts = recipe.spec.split("/")
         candidates = []
-        for index in range(2, len(parts), 2):
+        pair_offset = len(parts) % 2
+        for index in range(pair_offset + 2, len(parts), 2):
             candidate = "/".join(parts[:index])
             if candidate in self.recipes:
                 candidates.append(self.recipes[candidate])
@@ -280,9 +281,9 @@ class Repository:
 
     def resolve_dependency(self, recipe: Recipe, dependency: str) -> str:
         dependency = dependency.strip("/")
-        if dependency in self.recipes:
+        dependency_parts = dependency.split("/")
+        if len(dependency_parts) > 2 and dependency in self.recipes:
             return dependency
-
         # Resolve a bare dependency relative to the requesting recipe by
         # walking up its hierarchy, matching the generated module layout.
         context = recipe.spec.split("/")[:-2]
@@ -291,6 +292,8 @@ class Repository:
             if candidate in self.recipes:
                 return candidate
             context = context[:-2]
+        if dependency in self.recipes:
+            return dependency
         die(f"{recipe.spec}: dependência não encontrada: {dependency}")
 
     def dependencies(self, recipe: Recipe) -> list[str]:
@@ -354,13 +357,13 @@ class Repository:
         reject_unknown("source", recipe.source, allowed_fields["source"])
         reject_unknown("build", recipe.build, allowed_fields["build"])
         reject_unknown("module", recipe.module, allowed_fields["module"])
-        # Specs are name/version pairs; the final pair must match the declared
-        # package name and version.
+        # Specs contain name/version pairs with an optional leading category;
+        # the final pair must match the declared package name and version.
         parts = recipe.spec.split("/")
         if recipe.schema != SCHEMA_VERSION:
             errors.append(f"schema deve ser {SCHEMA_VERSION}")
-        if len(parts) < 2 or len(parts) % 2:
-            errors.append("o caminho deve ser composto por pares nome/versão")
+        if len(parts) < 2:
+            errors.append("o caminho deve terminar em um par nome/versão")
         elif parts[-2:] != [recipe.name, recipe.version]:
             errors.append(
                 f"package.name/version ({recipe.name}/{recipe.version}) não corresponde ao caminho"
@@ -895,16 +898,23 @@ def replace_source_checksum(path: Path, digest: str) -> None:
 
 def command_new(repository: Repository, spec: str, system: str) -> None:
     parts = spec.strip("/").split("/")
-    if len(parts) < 2 or len(parts) % 2:
-        die("a spec deve ser composta por pares nome/versão")
+    if len(parts) < 2 or any(part in {"", ".", ".."} for part in parts):
+        die("a spec deve terminar em um par nome/versão")
     path = repository.packages_dir.joinpath(*parts) / "package.toml"
+    try:
+        path.resolve().relative_to(repository.packages_dir.resolve())
+    except (OSError, RuntimeError, ValueError):
+        die("a spec deve permanecer dentro do diretório packages")
     if path.exists():
         die(f"receita já existe: {spec}")
-    path.parent.mkdir(parents=True, exist_ok=True)
     name, version = parts[-2:]
-    path.write_text(
-        f'''schema = 1\n\n[package]\nname = {json.dumps(name)}\nversion = {json.dumps(version)}\ndescription = {json.dumps(name)}\ndependencies = []\n\n[source]\nurl = ""\nsha256 = "UNSET"\ndirectory = {json.dumps(name + "-" + version)}\n\n[build]\nsystem = {json.dumps(system)}\narguments = []\n\n[module]\nroot_environment = [{json.dumps(name.upper().replace("-", "_") + "_ROOT")}]\n\n[module.paths]\nPATH = ["bin"]\nLD_LIBRARY_PATH = ["lib"]\nCPATH = ["include"]\n'''
-    )
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            f'''schema = 1\n\n[package]\nname = {json.dumps(name)}\nversion = {json.dumps(version)}\ndescription = {json.dumps(name)}\ndependencies = []\n\n[source]\nurl = ""\nsha256 = "UNSET"\ndirectory = {json.dumps(name + "-" + version)}\n\n[build]\nsystem = {json.dumps(system)}\narguments = []\n\n[module]\nroot_environment = [{json.dumps(name.upper().replace("-", "_") + "_ROOT")}]\n\n[module.paths]\nPATH = ["bin"]\nLD_LIBRARY_PATH = ["lib"]\nCPATH = ["include"]\n'''
+        )
+    except OSError as exc:
+        die(f"não foi possível criar receita: {exc}")
     print(path)
 
 

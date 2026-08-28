@@ -4,7 +4,7 @@ schema = 1
 name = "mpc"
 version = "1.2.1"
 description = "GNU MPC 1.2.1"
-dependencies = ["gmp/6.1.0", "mpfr/4.1.0"]
+dependencies = ["core/gmp/6.1.0", "core/mpfr/4.1.0"]
 
 [source]
 mirror = "gnu"

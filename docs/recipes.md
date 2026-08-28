@@ -1,12 +1,19 @@
 # Receitas hierárquicas
 
-Cada receita reside em `packages/<nome>/<versão>/package.toml`. Pares adicionais de nome e versão representam a toolchain:
+Cada receita reside em `packages/[<categoria>/]<nome>/<versão>/package.toml`.
+Uma categoria opcional organiza componentes de base, enquanto pares adicionais
+de nome e versão representam a toolchain:
 
 ```text
+core/gmp/6.3.0
 gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6
 ```
 
 O pai imediato é uma dependência implícita. Dependências declaradas com nomes curtos são procuradas primeiro no contexto do pai, depois no contexto do compilador e finalmente na raiz.
+
+Alterar a categoria muda a spec canônica, o prefixo e o nome do módulo. Ao mover
+uma receita já instalada, remova a spec antiga antes da atualização e reinstale
+a stack usando a nova spec.
 
 ## Schema mínimo
 

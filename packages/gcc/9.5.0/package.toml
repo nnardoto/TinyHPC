@@ -4,7 +4,7 @@ schema = 1
 name = "gcc"
 version = "9.5.0"
 description = "GNU Compiler Collection 9.5.0"
-dependencies = ["gmp/6.1.0", "mpfr/4.1.0", "mpc/1.2.1", "isl/0.24"]
+dependencies = ["core/gmp/6.1.0", "core/mpfr/4.1.0", "core/mpc/1.2.1", "core/isl/0.24"]
 
 [source]
 mirror = "gnu"

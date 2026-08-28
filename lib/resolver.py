@@ -66,8 +66,11 @@ class Resolver:
         canonical_parts = cls._parts(canonical)
         if not query_parts:
             return False
-        if len(query_parts) % 2 == 0:
-            return canonical_parts[-len(query_parts) :] == query_parts
+        if (
+            len(query_parts) % 2 == 0
+            and canonical_parts[-len(query_parts) :] == query_parts
+        ):
+            return True
 
         if len(canonical_parts) < 2 or canonical_parts[-2] != query_parts[-1]:
             return False

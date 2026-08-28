@@ -30,7 +30,7 @@ GCC16_MPI509_QE = f"{GCC16}/openmpi/5.0.9/quantum-espresso/7.6"
 class ResolverTests(unittest.TestCase):
     def setUp(self):
         specs = {
-            "isl/0.24": None,
+            "core/isl/0.24": None,
             "zlib/1.3.1": None,
             GCC9: "compiler",
             GCC16: "compiler",
@@ -51,7 +51,10 @@ class ResolverTests(unittest.TestCase):
         self.assertEqual(self.resolver.resolve(GCC16_QE, compiler_context=GCC9), GCC16_QE)
 
     def test_unique_name_resolves(self):
-        self.assertEqual(self.resolver.resolve("isl"), "isl/0.24")
+        self.assertEqual(self.resolver.resolve("isl"), "core/isl/0.24")
+
+    def test_category_and_name_resolve_without_version(self):
+        self.assertEqual(self.resolver.resolve("core/isl"), "core/isl/0.24")
 
     def test_unique_name_and_version_resolve(self):
         self.assertEqual(self.resolver.resolve("zlib/1.3.1"), "zlib/1.3.1")

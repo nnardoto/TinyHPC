@@ -80,7 +80,7 @@ correspondente após atualizar o TinyHPC.
 
 ## Arquitetura, configuração e receitas
 
-O projeto separa o gerenciador (`/opt/tinyhpc`) da stack gerenciada (`/opt/hpc`). Receitas são TOML hierárquicos em `packages/`; o caminho define identidade e herança (por exemplo, `gcc/9.5.0/openmpi/5.0.8`). Veja [docs/configuration.md](docs/configuration.md) e [docs/recipes.md](docs/recipes.md).
+O projeto separa o gerenciador (`/opt/tinyhpc`) da stack gerenciada (`/opt/hpc`). Receitas são TOML hierárquicos em `packages/`; o caminho define categoria, identidade e herança (por exemplo, `core/gmp/6.3.0` e `gcc/9.5.0/openmpi/5.0.8`). Veja [docs/configuration.md](docs/configuration.md) e [docs/recipes.md](docs/recipes.md).
 
 ## Receitas disponíveis
 

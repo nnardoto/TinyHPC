@@ -76,8 +76,8 @@ class BashCliTests(unittest.TestCase):
             repository = Repository(ROOT)
             runtime = Runtime(repository)
             runtime.software = stack / "software"
-            valid = repository.get("gmp/6.1.0")
-            stale = repository.get("mpfr/4.1.0")
+            valid = repository.get("core/gmp/6.1.0")
+            stale = repository.get("core/mpfr/4.1.0")
             for recipe, fingerprint in (
                 (valid, runtime.recipe_fingerprint(valid)),
                 (stale, "stale"),

@@ -12,7 +12,13 @@ from unittest import mock
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPOSITORY_ROOT / "lib"))
 
-from recipe import RecipeError, Repository, Runtime, apply_configuration  # noqa: E402
+from recipe import (  # noqa: E402
+    RecipeError,
+    Repository,
+    Runtime,
+    apply_configuration,
+    command_new,
+)
 from resolver import write_compiler  # noqa: E402
 
 
@@ -35,10 +41,10 @@ class HierarchyTests(unittest.TestCase):
         self.assertEqual(
             self.repository.plan(QE_SPEC),
             [
-                "gmp/6.1.0",
-                "mpfr/4.1.0",
-                "mpc/1.2.1",
-                "isl/0.24",
+                "core/gmp/6.1.0",
+                "core/mpfr/4.1.0",
+                "core/mpc/1.2.1",
+                "core/isl/0.24",
                 "gcc/9.5.0",
                 "gcc/9.5.0/openmpi/5.0.8",
                 "gcc/9.5.0/openblas/0.3.30",
@@ -52,10 +58,10 @@ class HierarchyTests(unittest.TestCase):
         self.assertEqual(
             self.repository.plan(OPENMX_SPEC),
             [
-                "gmp/6.1.0",
-                "mpfr/4.1.0",
-                "mpc/1.2.1",
-                "isl/0.24",
+                "core/gmp/6.1.0",
+                "core/mpfr/4.1.0",
+                "core/mpc/1.2.1",
+                "core/isl/0.24",
                 "gcc/9.5.0",
                 "gcc/9.5.0/openmpi/5.0.8",
                 "gcc/9.5.0/fftw/3.3.10",
@@ -69,20 +75,20 @@ class HierarchyTests(unittest.TestCase):
         self.assertEqual(
             self.repository.plan(GCC16_SPEC),
             [
-                "gmp/6.3.0",
-                "mpfr/4.2.2",
-                "mpc/1.3.1",
-                "isl/0.24",
+                "core/gmp/6.3.0",
+                "core/mpfr/4.2.2",
+                "core/mpc/1.3.1",
+                "core/isl/0.24",
                 GCC16_SPEC,
             ],
         )
 
     def test_gcc_16_scientific_stack_plans_are_complete(self):
         common = [
-            "gmp/6.3.0",
-            "mpfr/4.2.2",
-            "mpc/1.3.1",
-            "isl/0.24",
+            "core/gmp/6.3.0",
+            "core/mpfr/4.2.2",
+            "core/mpc/1.3.1",
+            "core/isl/0.24",
             GCC16_SPEC,
             "gcc/16.2.0/openmpi/5.0.8",
         ]
@@ -128,7 +134,7 @@ class HierarchyTests(unittest.TestCase):
         for spec in ("gcc/9.5.0", GCC16_SPEC):
             with self.subTest(spec=spec):
                 recipe = self.repository.get(spec)
-                self.assertIn("isl/0.24", self.repository.dependencies(recipe))
+                self.assertIn("core/isl/0.24", self.repository.dependencies(recipe))
                 self.assertIn("--with-isl=${ISL_ROOT}", recipe.build["arguments"])
                 modulefile = Runtime(self.repository).render_modulefile(recipe)
                 self.assertIn('prepend_path("LD_LIBRARY_PATH", pathJoin(root, "lib64"))', modulefile)
@@ -157,15 +163,72 @@ class HierarchyTests(unittest.TestCase):
         self.assertIn('setenv("CC", pathJoin(root, "bin/gcc"))', modulefile)
 
     def test_reverse_dependencies_are_transitive(self):
-        gmp = self.repository.get("gmp/6.3.0")
+        gmp = self.repository.get("core/gmp/6.3.0")
         dependents = {recipe.spec for recipe in self.repository.dependents(gmp)}
-        self.assertIn("mpfr/4.2.2", dependents)
-        self.assertIn("mpc/1.3.1", dependents)
+        self.assertIn("core/mpfr/4.2.2", dependents)
+        self.assertIn("core/mpc/1.3.1", dependents)
         self.assertIn(GCC16_SPEC, dependents)
         self.assertIn(GCC16_QE_SPEC, dependents)
 
 
 class ValidationTests(unittest.TestCase):
+    def test_category_preserves_name_version_hierarchy(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_recipe(root, "core/tool/1", [])
+            self.write_recipe(root, "core/tool/1/library/2", [])
+            repository = Repository(root)
+
+            repository.validate(list(repository.recipes.values()))
+            child = repository.get("core/tool/1/library/2")
+            self.assertEqual(repository.dependencies(child), ["core/tool/1"])
+
+    def test_category_dependency_takes_precedence_over_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_recipe(root, "gmp/1", [])
+            self.write_recipe(root, "core/gmp/1", [])
+            self.write_recipe(root, "core/mpfr/1", ["gmp/1"])
+            repository = Repository(root)
+
+            mpfr = repository.get("core/mpfr/1")
+            self.assertEqual(repository.dependencies(mpfr), ["core/gmp/1"])
+
+    def test_canonical_category_dependency_is_not_shadowed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_recipe(root, "core/gmp/1", [])
+            self.write_recipe(root, "vendor/core/gmp/1", [])
+            self.write_recipe(root, "vendor/mpfr/1", ["core/gmp/1"])
+            repository = Repository(root)
+
+            mpfr = repository.get("vendor/mpfr/1")
+            self.assertEqual(repository.dependencies(mpfr), ["core/gmp/1"])
+
+    def test_new_accepts_category_and_rejects_parent_traversal(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "packages").mkdir()
+            repository = Repository(root)
+
+            command_new(repository, "core/zlib/1", "cmake")
+            self.assertTrue((root / "packages/core/zlib/1/package.toml").is_file())
+            with self.assertRaisesRegex(RecipeError, "par nome/versão"):
+                command_new(repository, "../outside/1", "cmake")
+            self.assertFalse((root / "outside/1/package.toml").exists())
+
+            outside = root / "outside"
+            outside.mkdir()
+            (root / "packages/linked").symlink_to(outside, target_is_directory=True)
+            with self.assertRaisesRegex(RecipeError, "diretório packages"):
+                command_new(repository, "linked/zlib/1", "cmake")
+            self.assertFalse((outside / "zlib/1/package.toml").exists())
+
+            loop = root / "packages/loop"
+            loop.symlink_to(loop, target_is_directory=True)
+            with self.assertRaisesRegex(RecipeError, "não foi possível criar receita"):
+                command_new(repository, "loop/zlib/1", "cmake")
+
     def test_dependency_cycle_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
