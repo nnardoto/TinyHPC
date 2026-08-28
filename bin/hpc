@@ -93,7 +93,9 @@ hpc_require_layout() {
 # Install one spec and everything it needs, in topological order.
 hpc_install_spec() {
     local spec="$1" plan item dependencies dependency log
+    local -a plan_items dependency_items
     plan="$(recipe plan "$spec")" || return 1
+    mapfile -t plan_items <<< "$plan"
 
     hpc_require_lmod
     module purge || return 1
@@ -102,7 +104,7 @@ hpc_install_spec() {
 
     # The plan lists dependencies before their dependents, so a single forward
     # pass always has each package's modules loaded before its own build.
-    while IFS= read -r item; do
+    for item in "${plan_items[@]}"; do
         [[ -n "$item" ]] || continue
         if recipe installed "$item"; then
             recipe sync-module "$item" || return 1
@@ -115,17 +117,18 @@ hpc_install_spec() {
         module purge || return 1
         module use "$HPC_MODULEFILES" || return 1
         dependencies="$(recipe dependencies "$item")" || return 1
-        while IFS= read -r dependency; do
+        mapfile -t dependency_items <<< "$dependencies"
+        for dependency in "${dependency_items[@]}"; do
             [[ -n "$dependency" ]] || continue
             module load "$dependency" || hpc_die "não foi possível carregar módulo de $dependency"
-        done <<< "$dependencies"
+        done
 
         # Key the log by the slash-separated spec, with slashes replaced by dashes.
         log="$HPC_LOGS/${item//\//-}.log"
         hpc_note "instalando $item"
         recipe install-one "$item" 2>&1 | tee "$log"
         [[ ${PIPESTATUS[0]} -eq 0 ]] || hpc_die "build falhou: $item"
-    done <<< "$plan"
+    done
 }
 
 case "${1:-}" in

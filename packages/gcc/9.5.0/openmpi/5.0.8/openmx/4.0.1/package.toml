@@ -1,0 +1,40 @@
+schema = 1
+
+[package]
+name = "openmx"
+version = "4.0.1"
+description = "OpenMX 4.0 with the official 4.0.1 patch, Open MPI, OpenBLAS, FFTW and ScaLAPACK"
+dependencies = ["fftw/3.3.10", "scalapack/2.2.0"]
+
+[source]
+url = "https://www.openmx-square.org/openmx4.0.tar.gz"
+archive = "openmx4.0.tar.gz"
+sha256 = "8d5338faf70885f276352bbd2826cdfed2ffd08f33eca58752666d79a7d0c3bf"
+directory = "openmx4.0"
+
+[build]
+system = "script"
+script = "build.sh"
+requires = ["curl", "ldd", "make", "mktemp", "sha256sum", "tar"]
+
+[module]
+root_environment = ["OPENMX_ROOT"]
+
+[module.paths]
+PATH = ["bin"]
+
+[[tests]]
+type = "executable"
+path = "bin/openmx"
+
+[[tests]]
+type = "directory"
+path = "DFT_DATA19"
+
+[[tests]]
+type = "file"
+path = "work/GaAs.dat"
+
+[[tests]]
+type = "script"
+path = "smoke-test.sh"

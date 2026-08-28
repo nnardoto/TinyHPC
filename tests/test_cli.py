@@ -37,9 +37,11 @@ class BashCliTests(unittest.TestCase):
             ["bash", str(CLI), *arguments],
             cwd=ROOT,
             env=configured_environment,
+            stdin=subprocess.DEVNULL,
             check=True,
             text=True,
             capture_output=True,
+            timeout=30,
         )
         return result.stdout
 
@@ -117,6 +119,56 @@ jobs = 24
                 },
             )
             self.assertIn("module       OK", output)
+
+    def test_install_plan_is_not_consumed_by_child_stdin(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary_path = Path(temporary)
+            root = temporary_path / "root"
+            for name in ("cache", "src", "build", "software", "modulefiles", "logs"):
+                (root / name).mkdir(parents=True, exist_ok=True)
+
+            calls = temporary_path / "calls"
+            fake_bin = temporary_path / "bin"
+            fake_bin.mkdir()
+            fake_python = fake_bin / "python3.13"
+            fake_python.write_text(
+                f'''#!/usr/bin/env bash
+if [[ "${{1:-}}" == "-c" ]]; then exit 0; fi
+for argument in "$@"; do
+  case "$argument" in
+    environment|plan|installed|dependencies|install-one) command="$argument"; break ;;
+  esac
+done
+case "${{command:-}}" in
+  environment)
+    printf '%s\t%s\n' TINYHPC_HOME {ROOT} TINYHPC_ROOT {root} HPC_JOBS 1 HPC_PROFILE generic \
+      HPC_ROOT {root} HPC_CACHE {root}/cache HPC_SRC {root}/src HPC_BUILD {root}/build \
+      HPC_SOFTWARE {root}/software HPC_MODULEFILES {root}/modulefiles HPC_LOGS {root}/logs
+    ;;
+  plan) printf 'dependency/1\ntarget/1\n' ;;
+  installed) exit 1 ;;
+  dependencies) : ;;
+  install-one)
+    printf '%s\n' "${{@: -1}}" >> {calls}
+    IFS= read -r ignored || true
+    ;;
+esac
+'''
+            )
+            fake_python.chmod(0o755)
+            bash_environment = temporary_path / "bash-env"
+            bash_environment.write_text("module() { return 0; }\n")
+
+            self.run_cli(
+                "install",
+                "target/1",
+                environment={
+                    "BASH_ENV": str(bash_environment),
+                    "PATH": f"{fake_bin}:{os.environ['PATH']}",
+                },
+            )
+
+            self.assertEqual(calls.read_text().splitlines(), ["dependency/1", "target/1"])
 
     def test_bash_interface_is_sourceable(self):
         result = subprocess.run(

@@ -13,6 +13,7 @@ from recipe import RecipeError, Repository, Runtime, apply_configuration  # noqa
 
 
 QE_SPEC = "gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6"
+OPENMX_SPEC = "gcc/9.5.0/openmpi/5.0.8/openmx/4.0.1"
 
 
 class HierarchyTests(unittest.TestCase):
@@ -36,6 +37,22 @@ class HierarchyTests(unittest.TestCase):
                 "gcc/9.5.0/fftw/3.3.10",
                 "gcc/9.5.0/openmpi/5.0.8/scalapack/2.2.0",
                 QE_SPEC,
+            ],
+        )
+
+    def test_openmx_plan_includes_numerical_dependencies(self):
+        self.assertEqual(
+            self.repository.plan(OPENMX_SPEC),
+            [
+                "gmp/6.1.0",
+                "mpfr/4.1.0",
+                "mpc/1.2.1",
+                "gcc/9.5.0",
+                "gcc/9.5.0/openmpi/5.0.8",
+                "gcc/9.5.0/fftw/3.3.10",
+                "gcc/9.5.0/openblas/0.3.30",
+                "gcc/9.5.0/openmpi/5.0.8/scalapack/2.2.0",
+                OPENMX_SPEC,
             ],
         )
 
