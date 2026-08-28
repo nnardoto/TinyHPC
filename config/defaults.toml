@@ -8,3 +8,10 @@ root = "/opt/hpc"
 [build]
 jobs = 4
 profile = "native"
+
+[mirrors]
+gnu = [
+  "https://ftp.gnu.org/gnu/",
+  "https://ftp.unicamp.br/pub/gnu/",
+  "https://gnu.c3sl.ufpr.br/ftp/",
+]

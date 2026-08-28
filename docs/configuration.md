@@ -19,6 +19,13 @@ root = "/opt/hpc"
 [build]
 jobs = 8
 profile = "native"
+
+[mirrors]
+gnu = [
+  "https://ftp.gnu.org/gnu/",
+  "https://ftp.unicamp.br/pub/gnu/",
+  "https://gnu.c3sl.ufpr.br/ftp/",
+]
 ```
 
 ## Campos
@@ -27,6 +34,23 @@ profile = "native"
 - `paths.root`: raiz da stack gerenciada;
 - `build.jobs`: paralelismo padrão dos builds;
 - `build.profile`: perfil de otimização usado pelas receitas científicas.
+- `mirrors.<grupo>`: fontes-base tentadas em ordem para receitas que usam o grupo.
+
+Cada grupo de espelhos é uma lista não vazia de URLs. A configuração do usuário
+substitui a lista padrão do grupo inteiro, permitindo alterar a prioridade em um
+único lugar sem editar receitas. Por exemplo:
+
+```toml
+[mirrors]
+gnu = [
+  "https://ftp.unicamp.br/pub/gnu/",
+  "https://gnu.c3sl.ufpr.br/ftp/",
+]
+```
+
+O TinyHPC concatena cada URL-base ao `source.path` da receita e tenta os
+resultados na ordem declarada. Fontes que não pertencem a um repositório
+espelhado continuam usando `source.url` diretamente.
 
 O perfil gera `HPC_OPT_FLAGS` automaticamente:
 
@@ -68,7 +92,7 @@ HPC_JOBS=16 hpc install gcc/9.5.0/openmpi/5.0.8
 Após editar o TOML em um shell que já carregou o TinyHPC, recarregue o ambiente:
 
 ```bash
-unset TINYHPC_ROOT HPC_JOBS HPC_PROFILE HPC_OPT_FLAGS HPC_OPENBLAS_DYNAMIC_ARCH
+unset TINYHPC_ROOT HPC_JOBS HPC_PROFILE HPC_OPT_FLAGS HPC_OPENBLAS_DYNAMIC_ARCH HPC_MIRRORS
 eval "$(hpc env)"
 module use "$HPC_MODULEFILES"
 ```

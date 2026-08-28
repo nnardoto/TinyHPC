@@ -1,4 +1,6 @@
 from pathlib import Path
+import hashlib
+import io
 import json
 import os
 import sys
@@ -182,6 +184,83 @@ class ValidationTests(unittest.TestCase):
             with self.assertRaisesRegex(RecipeError, "campo desconhecido em build: systen"):
                 repository.validate([repository.get("a/1")])
 
+    def test_mirror_source_requires_path_and_excludes_url(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_recipe(root, "a/1", [])
+            manifest = root / "packages/a/1/package.toml"
+            manifest.write_text(
+                manifest.read_text().replace(
+                    'url = "https://example.invalid/a.tar.gz"',
+                    'url = "https://example.invalid/a.tar.gz"\nmirror = "gnu"',
+                )
+            )
+            repository = Repository(root)
+            errors = repository.validate_recipe(repository.get("a/1"))
+            self.assertIn("source.url e source.mirror/path são mutuamente exclusivos", errors)
+            self.assertIn("source.path é obrigatório quando source.mirror é usado", errors)
+
+    def test_archive_must_be_a_cache_basename(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_recipe(root, "a/1", [])
+            manifest = root / "packages/a/1/package.toml"
+            manifest.write_text(
+                manifest.read_text().replace(
+                    'sha256 =', 'archive = "../outside.tar.gz"\nsha256 ='
+                )
+            )
+            repository = Repository(root)
+            recipe = repository.get("a/1")
+            errors = repository.validate_recipe(recipe)
+            self.assertIn("source.archive deve ser um nome de arquivo sem diretórios", errors)
+            with self.assertRaisesRegex(RecipeError, "source.archive"):
+                Runtime(repository).cache_path(recipe)
+
+    def test_fetch_tries_mirrors_in_configured_order(self):
+        payload = b"mirror archive"
+        digest = hashlib.sha256(payload).hexdigest()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_recipe(root, "a/1", [])
+            manifest = root / "packages/a/1/package.toml"
+            manifest.write_text(
+                manifest.read_text()
+                .replace(
+                    'url = "https://example.invalid/a.tar.gz"',
+                    'mirror = "gnu"\npath = "a/a.tar.gz"',
+                )
+                .replace("0" * 64, digest)
+            )
+            repository = Repository(root)
+            recipe = repository.get("a/1")
+            repository.validate([recipe])
+            runtime = Runtime(repository)
+            runtime.cache = root / "cache"
+            runtime.cache.mkdir()
+            attempted = []
+
+            def open_url(url, timeout):
+                attempted.append(url)
+                if len(attempted) == 1:
+                    return io.BytesIO(b"corrupt archive")
+                return io.BytesIO(payload)
+
+            mirrors = {"gnu": ["https://primary.example/gnu/", "https://mirror.example/gnu"]}
+            with mock.patch.dict(os.environ, {"HPC_MIRRORS": json.dumps(mirrors)}), \
+                    mock.patch("recipe.urllib.request.urlopen", side_effect=open_url):
+                archive = runtime.fetch(recipe)
+
+            self.assertEqual(recipe.archive, "a.tar.gz")
+            self.assertEqual(archive.read_bytes(), payload)
+            self.assertEqual(
+                attempted,
+                [
+                    "https://primary.example/gnu/a/a.tar.gz",
+                    "https://mirror.example/gnu/a/a.tar.gz",
+                ],
+            )
+
     def test_install_marker_is_invalidated_when_recipe_changes(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -342,6 +421,8 @@ root = "/srv/hpc"
 [build]
 jobs = 12
 profile = "generic"
+[mirrors]
+gnu = ["https://mirror.example/gnu/"]
 '''
             )
             with mock.patch.dict(os.environ, {"TINYHPC_CONFIG": str(config)}, clear=True):
@@ -352,6 +433,18 @@ profile = "generic"
                 self.assertEqual(os.environ["HPC_PROFILE"], "generic")
                 self.assertEqual(os.environ["HPC_OPT_FLAGS"], "-O3")
                 self.assertEqual(os.environ["HPC_OPENBLAS_DYNAMIC_ARCH"], "1")
+                self.assertEqual(
+                    json.loads(os.environ["HPC_MIRRORS"]),
+                    {"gnu": ["https://mirror.example/gnu/"]},
+                )
+
+    def test_invalid_mirror_list_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            config = Path(temporary) / "config.toml"
+            config.write_text('schema = 1\n[mirrors]\ngnu = "https://example.invalid/gnu/"\n')
+            with mock.patch.dict(os.environ, {"TINYHPC_CONFIG": str(config)}, clear=True):
+                with self.assertRaisesRegex(RecipeError, "mirrors.gnu"):
+                    apply_configuration(REPOSITORY_ROOT)
 
     def test_environment_has_precedence_over_toml(self):
         with mock.patch.dict(

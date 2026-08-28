@@ -7,7 +7,8 @@ description = "GNU MPFR 4.2.2"
 dependencies = ["gmp/6.3.0"]
 
 [source]
-url = "https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.2.tar.bz2"
+mirror = "gnu"
+path = "mpfr/mpfr-4.2.2.tar.bz2"
 sha256 = "9ad62c7dc910303cd384ff8f1f4767a655124980bb6d8650fe62c815a231bb7b"
 directory = "mpfr-4.2.2"
 

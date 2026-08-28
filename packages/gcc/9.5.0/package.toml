@@ -7,7 +7,8 @@ description = "GNU Compiler Collection 9.5.0"
 dependencies = ["gmp/6.1.0", "mpfr/4.1.0", "mpc/1.2.1", "isl/0.24"]
 
 [source]
-url = "https://ftp.gnu.org/gnu/gcc/gcc-9.5.0/gcc-9.5.0.tar.xz"
+mirror = "gnu"
+path = "gcc/gcc-9.5.0/gcc-9.5.0.tar.xz"
 sha256 = "27769f64ef1d4cd5e2be8682c0c93f9887983e6cfd1a927ce5a0a2915a95cf8f"
 directory = "gcc-9.5.0"
 

@@ -38,6 +38,22 @@ CPATH = ["include"]
 
 Use `hpc lock <spec>` para baixar a fonte e preencher `source.sha256`. A instalação é recusada enquanto o checksum não estiver travado.
 
+Fontes pertencentes a um grupo configurado em `[mirrors]` usam o grupo e um
+caminho relativo em vez de uma URL fixa:
+
+```toml
+[source]
+mirror = "gnu"
+path = "gmp/gmp-6.3.0.tar.bz2"
+sha256 = "UNSET"
+directory = "gmp-6.3.0"
+```
+
+O nome do arquivo de cache é derivado do último componente de `path`. Para
+fontes genéricas, mantenha `url`; `url` e `mirror`/`path` são alternativas
+mutuamente exclusivas. `archive` pode ser informado explicitamente quando o
+nome derivado da URL ou do caminho não for adequado.
+
 ## Build
 
 `build.system` aceita:

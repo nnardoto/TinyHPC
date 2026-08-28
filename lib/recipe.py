@@ -25,6 +25,7 @@ except ModuleNotFoundError:  # Python 3.10 and older
 SCHEMA_VERSION = 1
 BUILD_SYSTEMS = {"autotools", "cmake", "make", "script"}
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+DOWNLOAD_TIMEOUT = 30
 CONFIG_ENVIRONMENT = (
     "TINYHPC_HOME",
     "TINYHPC_ROOT",
@@ -32,6 +33,7 @@ CONFIG_ENVIRONMENT = (
     "HPC_PROFILE",
     "HPC_OPT_FLAGS",
     "HPC_OPENBLAS_DYNAMIC_ARCH",
+    "HPC_MIRRORS",
     "HPC_ROOT",
     "HPC_CACHE",
     "HPC_SRC",
@@ -102,9 +104,10 @@ def read_configuration(path: Path, required: bool = False) -> dict[str, object]:
         die(f"{path}: schema deve ser {SCHEMA_VERSION}")
     paths = data.get("paths", {})
     build = data.get("build", {})
-    if not isinstance(paths, dict) or not isinstance(build, dict):
-        die(f"{path}: paths e build devem ser tabelas TOML")
-    unknown_root = set(data) - {"schema", "paths", "build"}
+    mirrors = data.get("mirrors", {})
+    if not isinstance(paths, dict) or not isinstance(build, dict) or not isinstance(mirrors, dict):
+        die(f"{path}: paths, build e mirrors devem ser tabelas TOML")
+    unknown_root = set(data) - {"schema", "paths", "build", "mirrors"}
     unknown_paths = set(paths) - {"home", "root"}
     unknown_build = set(build) - {"jobs", "profile"}
     if unknown_root or unknown_paths or unknown_build:
@@ -120,6 +123,15 @@ def read_configuration(path: Path, required: bool = False) -> dict[str, object]:
         or build["profile"] not in {"generic", "native"}
     ):
         die(f"{path}: build.profile deve ser 'generic' ou 'native'")
+    for name, urls in mirrors.items():
+        if (
+            not isinstance(name, str)
+            or not name
+            or not isinstance(urls, list)
+            or not urls
+            or not all(isinstance(url, str) and url for url in urls)
+        ):
+            die(f"{path}: mirrors.{name} deve ser uma lista não vazia de strings não vazias")
     return data
 
 
@@ -140,6 +152,8 @@ def apply_configuration(repository_root: Path) -> Path | None:
     paths.update(user.get("paths", {}))
     build = dict(defaults.get("build", {}))
     build.update(user.get("build", {}))
+    mirrors = dict(defaults.get("mirrors", {}))
+    mirrors.update(user.get("mirrors", {}))
     for required in ("home", "root"):
         if required not in paths:
             die(f"{defaults_path}: paths.{required} ausente")
@@ -164,6 +178,7 @@ def apply_configuration(repository_root: Path) -> Path | None:
         openblas_dynamic_arch = "0"
     os.environ["HPC_OPT_FLAGS"] = optimization_flags
     os.environ["HPC_OPENBLAS_DYNAMIC_ARCH"] = openblas_dynamic_arch
+    os.environ.setdefault("HPC_MIRRORS", json.dumps(mirrors, separators=(",", ":")))
     root = os.environ["TINYHPC_ROOT"]
     os.environ["HPC_ROOT"] = root
     os.environ["HPC_CACHE"] = f"{root}/cache"
@@ -203,6 +218,14 @@ class Recipe:
         return str(self.source.get("url", ""))
 
     @property
+    def source_mirror(self) -> str:
+        return str(self.source.get("mirror", ""))
+
+    @property
+    def source_relative_path(self) -> str:
+        return str(self.source.get("path", ""))
+
+    @property
     def sha256(self) -> str:
         return str(self.source.get("sha256", ""))
 
@@ -215,7 +238,8 @@ class Recipe:
         configured = self.source.get("archive")
         if configured:
             return str(configured)
-        return self.source_url.rstrip("/").rsplit("/", 1)[-1]
+        source = self.source_relative_path or self.source_url
+        return source.rstrip("/").rsplit("/", 1)[-1]
 
 
 class Repository:
@@ -297,7 +321,7 @@ class Repository:
         allowed_fields = {
             "root": {"schema", "package", "source", "build", "module", "tests"},
             "package": {"name", "version", "description", "dependencies"},
-            "source": {"url", "archive", "sha256", "directory"},
+            "source": {"url", "mirror", "path", "archive", "sha256", "directory"},
             "build": {
                 "system",
                 "arguments",
@@ -333,8 +357,24 @@ class Repository:
             errors.append(
                 f"package.name/version ({recipe.name}/{recipe.version}) não corresponde ao caminho"
             )
-        if not recipe.source_url:
-            errors.append("source.url ausente")
+        has_url = bool(recipe.source_url)
+        has_mirror = bool(recipe.source_mirror)
+        has_path = bool(recipe.source_relative_path)
+        for field in ("url", "mirror", "path", "archive"):
+            if field in recipe.source and (
+                not isinstance(recipe.source[field], str) or not recipe.source[field]
+            ):
+                errors.append(f"source.{field} deve ser uma string não vazia")
+        if has_url and (has_mirror or has_path):
+            errors.append("source.url e source.mirror/path são mutuamente exclusivos")
+        elif not has_url and not has_mirror:
+            errors.append("source.url ou source.mirror é obrigatório")
+        if has_mirror and not has_path:
+            errors.append("source.path é obrigatório quando source.mirror é usado")
+        if has_path and not has_mirror:
+            errors.append("source.mirror é obrigatório quando source.path é usado")
+        if not recipe.archive or Path(recipe.archive).name != recipe.archive:
+            errors.append("source.archive deve ser um nome de arquivo sem diretórios")
         if not recipe.source_directory:
             errors.append("source.directory ausente")
         if require_lock and not SHA256_RE.fullmatch(recipe.sha256):
@@ -519,17 +559,59 @@ class Runtime:
             value = value.replace(key, replacement)
         return os.path.expandvars(value)
 
+    def source_urls(self, recipe: Recipe) -> list[str]:
+        if not recipe.source_mirror:
+            return [recipe.source_url]
+        try:
+            mirrors = json.loads(os.environ.get("HPC_MIRRORS", "{}"))
+        except json.JSONDecodeError:
+            die("HPC_MIRRORS deve conter um objeto JSON válido")
+        urls = mirrors.get(recipe.source_mirror) if isinstance(mirrors, dict) else None
+        if (
+            not isinstance(urls, list)
+            or not urls
+            or not all(isinstance(url, str) and url for url in urls)
+        ):
+            die(f"{recipe.spec}: grupo de espelhos desconhecido: {recipe.source_mirror}")
+        relative_path = recipe.source_relative_path.lstrip("/")
+        return [f"{url.rstrip('/')}/{relative_path}" for url in urls]
+
+    def cache_path(self, recipe: Recipe) -> Path:
+        if not recipe.archive or Path(recipe.archive).name != recipe.archive:
+            die(f"{recipe.spec}: source.archive deve ser um nome de arquivo sem diretórios")
+        return self.cache / recipe.archive
+
+    def download(
+        self,
+        recipe: Recipe,
+        destination: Path,
+        expected_sha256: str | None = None,
+    ) -> None:
+        temporary = destination.with_suffix(destination.suffix + ".part")
+        failures = []
+        for url in self.source_urls(recipe):
+            note(f"tentando {url}")
+            try:
+                with urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT) as response, temporary.open("wb") as output:
+                    shutil.copyfileobj(response, output)
+                if expected_sha256 and file_sha256(temporary) != expected_sha256:
+                    raise RecipeError("checksum inválido")
+                temporary.replace(destination)
+                return
+            except Exception as exc:
+                failures.append(f"{url}: {exc}")
+                temporary.unlink(missing_ok=True)
+        die(f"{recipe.spec}: nenhuma fonte disponível:\n  - " + "\n  - ".join(failures))
+
     def fetch(self, recipe: Recipe) -> Path:
-        destination = self.cache / recipe.archive
+        destination = self.cache_path(recipe)
+        locked = bool(SHA256_RE.fullmatch(recipe.sha256))
+        if destination.exists() and locked and file_sha256(destination) != recipe.sha256:
+            note(f"descartando cache inválido {recipe.archive}")
+            destination.unlink()
         if not destination.exists():
             note(f"baixando {recipe.archive}")
-            temporary = destination.with_suffix(destination.suffix + ".part")
-            try:
-                with urllib.request.urlopen(recipe.source_url) as response, temporary.open("wb") as output:
-                    shutil.copyfileobj(response, output)
-                temporary.replace(destination)
-            finally:
-                temporary.unlink(missing_ok=True)
+            self.download(recipe, destination, recipe.sha256 if locked else None)
         else:
             note(f"usando cache {recipe.archive}")
 
@@ -866,7 +948,7 @@ def main() -> int:
         if command == "info":
             print(f"name={recipe.name}")
             print(f"version={recipe.version}")
-            print(f"source={recipe.source_url}")
+            print(f"source={','.join(runtime.source_urls(recipe))}")
             print(f"prefix={runtime.prefix(recipe)}")
             print(f"module={recipe.spec}")
             print(f"parent={(repository.parent(recipe) or recipe).spec if repository.parent(recipe) else ''}")
@@ -891,11 +973,10 @@ def main() -> int:
             runtime.remove(recipe)
         elif command == "lock":
             runtime.require_layout()
-            archive = runtime.cache / recipe.archive
+            archive = runtime.cache_path(recipe)
             if not archive.exists():
                 note(f"baixando {recipe.archive}")
-                with urllib.request.urlopen(recipe.source_url) as response, archive.open("wb") as output:
-                    shutil.copyfileobj(response, output)
+                runtime.download(recipe, archive)
             digest = file_sha256(archive)
             replace_source_checksum(recipe.path, digest)
             print(f"sha256={digest}")
