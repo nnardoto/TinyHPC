@@ -18,11 +18,21 @@ mv "${source_dir}/source/GaAs.dat" "${source_dir}/work/GaAs.dat"
 
 mpi_link="$("${MPI_ROOT}/bin/mpifort" --showme:link)"
 
+# GCC 14+ rejects legacy argument mismatches in elpa1.f90 (OpenMX's bundled
+# ELPA passes COMPLEX where the dummy is declared REAL and mixes REAL/COMPLEX
+# buffers across MPI calls). -fallow-argument-mismatch is Fortran-only and
+# exists only on GCC 10+, so gate it on the compiler version.
+fortran_major="$("${MPI_ROOT}/bin/mpifort" -dumpversion | cut -d. -f1)"
+mismatch_flag=""
+if [[ "${fortran_major}" -ge 10 ]]; then
+  mismatch_flag="-fallow-argument-mismatch"
+fi
+
 mkdir -p "${HPC_PREFIX}/bin"
 # The upstream makefile omits dependencies between some Fortran modules.
 make -C "${source_dir}/source" -j1 all \
-  "CC=${MPI_ROOT}/bin/mpicc ${HPC_OPT_FLAGS} -fgraphite-identity -floop-nest-optimize -fopenmp -fcommon -Wno-implicit-function-declaration -I${FFTW_ROOT}/include" \
-  "FC=${MPI_ROOT}/bin/mpifort ${HPC_OPT_FLAGS} -fgraphite-identity -floop-nest-optimize -fopenmp" \
+  "CC=${MPI_ROOT}/bin/mpicc ${HPC_OPT_FLAGS} -fgraphite-identity -floop-nest-optimize -fopenmp -fcommon -Wno-implicit-function-declaration -Wno-incompatible-pointer-types -I${FFTW_ROOT}/include" \
+  "FC=${MPI_ROOT}/bin/mpifort ${HPC_OPT_FLAGS} -fgraphite-identity -floop-nest-optimize -fopenmp ${mismatch_flag}" \
   "LIB=-L${SCALAPACK_ROOT}/lib -L${OPENBLAS_ROOT}/lib -L${FFTW_ROOT}/lib -lscalapack -lopenblas -lfftw3_omp -lfftw3 ${mpi_link} -lgfortran -lpthread -lm -ldl -Wl,-rpath,${SCALAPACK_ROOT}/lib:${OPENBLAS_ROOT}/lib:${FFTW_ROOT}/lib:${MPI_ROOT}/lib:${GCC_ROOT}/lib64:${GCC_ROOT}/lib" \
   "DESTDIR=${HPC_PREFIX}/bin"
 

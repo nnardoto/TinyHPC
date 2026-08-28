@@ -1,0 +1,20 @@
+--- a/source/diff_geo.c
++++ b/source/diff_geo.c
+@@ -37,7 +37,7 @@
+ double md(double **xyz1, double **xyz2);
+ double minimize_md();
+ void calc_md_BL();
+-void generate_vec();
++void generate_vec(double **xyz1, double **xyz2);
+ 
+ int atomnum1,atomnum2;
+ double **Gxyz1;
+@@ -153,7 +153,7 @@
+   }
+   /* generate a vector file */ 
+   else if (anal_switch==4){
+-    generate_vec(); 
++    generate_vec(Gxyz1, Gxyz2);
+   }
+ 
+ 
