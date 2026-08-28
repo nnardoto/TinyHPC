@@ -25,7 +25,9 @@ O bootstrap é idempotente: instala o gerenciador em `/opt/tinyhpc`, cria o CLI 
 ## Uso
 
 ```bash
+hpc --help
 hpc list
+hpc installed
 hpc info gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6
 hpc plan gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6
 hpc install gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6
@@ -35,7 +37,7 @@ module load quantum-espresso/7.6
 command -v pw.x
 ```
 
-`hpc list` mostra as receitas disponíveis, `hpc info` exibe metadados e dependências, `hpc plan` imprime a ordem de build (GMP, MPFR, MPC, GCC, Open MPI, OpenBLAS, FFTW, ScaLAPACK e Quantum ESPRESSO) e `hpc install` resolve as dependências, reutilizando o que já está instalado.
+`hpc list` mostra as receitas disponíveis, `hpc installed` lista as instalações válidas, `hpc info` exibe metadados e dependências, `hpc plan` imprime a ordem de build (GMP, MPFR, MPC, GCC, Open MPI, OpenBLAS, FFTW, ScaLAPACK e Quantum ESPRESSO) e `hpc install` resolve as dependências, reutilizando o que já está instalado.
 
 ### Specs curtas e contexto de compilador
 
@@ -71,6 +73,10 @@ source ~/.config/tinyhpc/bashrc    # Bash
 source ~/.config/tinyhpc/zshrc     # Zsh
 source ~/.config/tinyhpc/fish.fish # Fish
 ```
+
+Essas interfaces também registram autocomplete para comandos, opções, receitas,
+compiladores e instalações. Abra um novo shell ou carregue novamente o arquivo
+correspondente após atualizar o TinyHPC.
 
 ## Arquitetura, configuração e receitas
 

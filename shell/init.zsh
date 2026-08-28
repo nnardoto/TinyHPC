@@ -11,6 +11,48 @@ fi
 # Load the environment computed by the CLI into this shell.
 eval "$("$_tinyhpc_home/bin/hpc" env --shell zsh)"
 
+_tinyhpc_complete() {
+    local command
+    local -a commands values
+    commands=(-h --help list installed info compilers compiler resolve config env plan validate new lock install clean remove doctor help)
+    if (( CURRENT == 2 )); then
+        _describe 'comando' commands
+        return
+    fi
+    command="${words[2]}"
+    case "$command" in
+        compiler)
+            values=("${(@f)$(hpc compilers 2>/dev/null)}" --clear)
+            values=("${values[@]#\* }")
+            values=("${values[@]#  }")
+            _describe 'compilador' values
+            ;;
+        remove)
+            values=("${(@f)$(hpc installed 2>/dev/null)}")
+            _describe 'spec instalada' values
+            ;;
+        info|resolve|plan|validate|lock|install|clean)
+            values=("${(@f)$(hpc list 2>/dev/null)}")
+            _describe 'spec' values
+            ;;
+        env)
+            _values 'shell' --shell bash zsh fish
+            ;;
+        new)
+            _values 'build system' --build-system autotools cmake make script
+            ;;
+    esac
+}
+if ! (( $+functions[compdef] )); then
+    autoload -Uz compinit
+    if autoload +X compinit 2>/dev/null; then
+        compinit
+    fi
+fi
+if (( $+functions[compdef] )); then
+    compdef _tinyhpc_complete hpc
+fi
+
 # Fall back to sourcing a system Lmod init script if "module" is unavailable.
 if ! type module >/dev/null 2>&1; then
     for _tinyhpc_lmod in \

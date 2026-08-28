@@ -918,6 +918,7 @@ def parser() -> argparse.ArgumentParser:
     validate = subcommands.add_parser("validate")
     validate.add_argument("spec", nargs="?")
     subcommands.add_parser("list")
+    subcommands.add_parser("list-installed")
     subcommands.add_parser("compilers")
     subcommands.add_parser("compiler-current")
     compiler_set = subcommands.add_parser("compiler-set")
@@ -953,6 +954,11 @@ def main() -> int:
             print(f"{key}={os.environ[key]}")
     elif command == "list":
         print("\n".join(sorted(repository.recipes)))
+    elif command == "list-installed":
+        installed = (
+            recipe.spec for recipe in repository.recipes.values() if runtime.installed(recipe)
+        )
+        print("\n".join(sorted(installed)))
     elif command == "compilers":
         current = resolver.validate_compiler_context(read_compiler())
         for compiler in resolver.list_compilers():

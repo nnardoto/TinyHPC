@@ -1,12 +1,19 @@
 from pathlib import Path
+import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "bin" / "hpc"
+sys.path.insert(0, str(ROOT / "lib"))
+
+from recipe import Repository, Runtime  # noqa: E402
+
+
 QE_SPEC = "gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6"
 CONFIG_ENVIRONMENT = (
     "TINYHPC_CONFIG",
@@ -52,6 +59,74 @@ class BashCliTests(unittest.TestCase):
         result = self.run_cli_process(*arguments, environment=environment)
         result.check_returncode()
         return result.stdout
+
+    def test_help_is_successful_and_does_not_load_configuration(self):
+        result = self.run_cli_process(
+            "--help", environment={"TINYHPC_CONFIG": "/does/not/exist.toml"}
+        )
+
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("Uso: hpc <comando> [opções]", result.stdout)
+        self.assertIn("installed", result.stdout)
+        self.assertEqual(result.stderr, "")
+
+    def test_installed_lists_only_valid_installations(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            stack = Path(temporary)
+            repository = Repository(ROOT)
+            runtime = Runtime(repository)
+            runtime.software = stack / "software"
+            valid = repository.get("gmp/6.1.0")
+            stale = repository.get("mpfr/4.1.0")
+            for recipe, fingerprint in (
+                (valid, runtime.recipe_fingerprint(valid)),
+                (stale, "stale"),
+            ):
+                marker = runtime.marker_path(recipe)
+                marker.parent.mkdir(parents=True)
+                marker.write_text(
+                    json.dumps(
+                        {"schema": 2, "spec": recipe.spec, "fingerprint": fingerprint}
+                    )
+                )
+
+            output = self.run_cli(
+                "installed", environment={"TINYHPC_ROOT": str(stack)}
+            )
+
+        self.assertEqual(output.splitlines(), [valid.spec])
+
+    def test_bash_interface_registers_command_completion(self):
+        result = subprocess.run(
+            [
+                "bash",
+                "-c",
+                "source shell/init.bash 2>/dev/null; "
+                "COMP_WORDS=(hpc ins); COMP_CWORD=1; _tinyhpc_complete; "
+                "printf '%s\\n' \"${COMPREPLY[@]}\"; complete -p hpc",
+            ],
+            cwd=ROOT,
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        self.assertIn("installed", result.stdout.splitlines())
+        self.assertIn("complete -F _tinyhpc_complete hpc", result.stdout)
+
+        help_result = subprocess.run(
+            [
+                "bash",
+                "-c",
+                "source shell/init.bash 2>/dev/null; "
+                "COMP_WORDS=(hpc -); COMP_CWORD=1; _tinyhpc_complete; "
+                "printf '%s\\n' \"${COMPREPLY[@]}\"",
+            ],
+            cwd=ROOT,
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(help_result.stdout.splitlines(), ["-h", "--help"])
 
     def test_quantum_espresso_plan_through_bash(self):
         plan = self.run_cli("plan", QE_SPEC).splitlines()

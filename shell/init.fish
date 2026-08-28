@@ -19,6 +19,15 @@ function __tinyhpc_initialize
     # Evaluate the environment emitted by the CLI into the current shell.
     $tinyhpc_home/bin/hpc env --shell fish | source
 
+    complete -c hpc -f
+    complete -c hpc -s h -l help -d 'Exibe a ajuda'
+    complete -c hpc -n 'not __fish_seen_subcommand_from list installed info compilers compiler resolve config env plan validate new lock install clean remove doctor help' -a 'list installed info compilers compiler resolve config env plan validate new lock install clean remove doctor help'
+    complete -c hpc -n '__fish_seen_subcommand_from info resolve plan validate lock install clean' -a '(hpc list 2>/dev/null)'
+    complete -c hpc -n '__fish_seen_subcommand_from remove' -a '(hpc installed 2>/dev/null)'
+    complete -c hpc -n '__fish_seen_subcommand_from compiler' -a '(hpc compilers 2>/dev/null | string trim | string replace -r "^\\*? +" "") --clear'
+    complete -c hpc -n '__fish_seen_subcommand_from env' -a '--shell bash zsh fish'
+    complete -c hpc -n '__fish_seen_subcommand_from new' -a '--build-system autotools cmake make script'
+
     # Fall back to sourcing a system Lmod init script if "module" is unavailable.
     if not type -q module
         for lmod_init in \
