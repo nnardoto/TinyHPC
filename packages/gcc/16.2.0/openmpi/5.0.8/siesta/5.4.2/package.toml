@@ -1,0 +1,65 @@
+schema = 1
+
+[package]
+name = "siesta"
+version = "5.4.2"
+description = "SIESTA 5.4.2 optimized for GCC 16.2.0 with MPI and OpenMP"
+dependencies = ["openblas/0.3.30", "fftw/3.3.10", "scalapack/2.2.0"]
+
+[source]
+url = "https://gitlab.com/siesta-project/siesta/-/releases/5.4.2/downloads/siesta-5.4.2.tar.gz"
+sha256 = "9cd855bd2702b69785588931aa06e4c1b1036f11b5ef7b01ecc29a7218a38d3f"
+directory = "siesta-5.4.2"
+
+[build]
+system = "cmake"
+requires = ["cmake"]
+arguments = [
+  "-DCMAKE_BUILD_TYPE=Release",
+  "-DCMAKE_C_COMPILER=${MPI_ROOT}/bin/mpicc",
+  "-DCMAKE_Fortran_COMPILER=${MPI_ROOT}/bin/mpifort",
+  "-DMPI_C_COMPILER=${MPI_ROOT}/bin/mpicc",
+  "-DMPI_Fortran_COMPILER=${MPI_ROOT}/bin/mpifort",
+  "-DFortran_FLAGS_RELEASE=${HPC_OPT_FLAGS}",
+  "-DC_FLAGS_RELEASE=${HPC_OPT_FLAGS}",
+  "-DSIESTA_WITH_MPI=ON",
+  "-DSIESTA_WITH_MPI_INTERFACES=f08",
+  "-DSIESTA_WITH_OPENMP=ON",
+  "-DSIESTA_WITH_IPO=ON",
+  "-DSIESTA_WITH_ELSI=OFF",
+  "-DSIESTA_WITH_PEXSI=OFF",
+  "-DSIESTA_WITH_ELPA=OFF",
+  "-DSIESTA_WITH_DFTD3=OFF",
+  "-DSIESTA_WITH_LIBXC=OFF",
+  "-DSIESTA_WITH_NETCDF=OFF",
+  "-DSIESTA_WITH_FLOOK=OFF",
+  "-DSIESTA_WITH_WANNIER90=OFF",
+  "-DSIESTA_WITH_FFTW=ON",
+  "-DSIESTA_TESTS=OFF",
+  "-DCMAKE_INSTALL_LIBDIR=lib",
+  "-DBLAS_LIBRARY=${OPENBLAS_ROOT}/lib/libopenblas.so",
+  "-DLAPACK_LIBRARY=NONE",
+  "-DSCALAPACK_LIBRARY=${SCALAPACK_ROOT}/lib/libscalapack.so",
+  "-DFFTW_ROOT=${FFTW_ROOT}",
+  "-DCMAKE_PREFIX_PATH=${OPENBLAS_ROOT};${FFTW_ROOT};${SCALAPACK_ROOT}",
+  "-DCMAKE_INSTALL_RPATH=${SCALAPACK_ROOT}/lib;${OPENBLAS_ROOT}/lib;${FFTW_ROOT}/lib;${MPI_ROOT}/lib;${GCC_ROOT}/lib64;${GCC_ROOT}/lib",
+]
+
+[build.environment]
+LD_LIBRARY_PATH = "${TINYHPC_HOST_LD_LIBRARY_PATH}"
+LDFLAGS = "-Wl,-rpath,${GCC_ROOT}/lib64 -Wl,-rpath,${GCC_ROOT}/lib -Wl,-rpath,${MPI_ROOT}/lib -Wl,-rpath,${OPENBLAS_ROOT}/lib -Wl,-rpath,${FFTW_ROOT}/lib -Wl,-rpath,${SCALAPACK_ROOT}/lib"
+
+[module]
+root_environment = ["SIESTA_ROOT"]
+
+[module.paths]
+PATH = ["bin"]
+LD_LIBRARY_PATH = ["lib"]
+
+[[tests]]
+type = "executable"
+path = "bin/siesta"
+
+[[tests]]
+type = "executable"
+path = "bin/tbtrans"

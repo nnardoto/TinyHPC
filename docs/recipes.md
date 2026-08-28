@@ -6,7 +6,7 @@ de nome e versão representam a toolchain:
 
 ```text
 core/gmp/6.3.0
-gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6
+gcc/16.2.0/openmpi/5.0.8/quantum-espresso/7.6
 ```
 
 O pai imediato é uma dependência implícita. Dependências declaradas com nomes curtos são procuradas primeiro no contexto do pai, depois no contexto do compilador e finalmente na raiz.
@@ -60,6 +60,9 @@ O nome do arquivo de cache é derivado do último componente de `path`. Para
 fontes genéricas, mantenha `url`; `url` e `mirror`/`path` são alternativas
 mutuamente exclusivas. `archive` pode ser informado explicitamente quando o
 nome derivado da URL ou do caminho não for adequado.
+
+Fontes que não sejam tarballs, como uma distribuição monolítica `.F90`, são
+copiadas para `source.directory` sem transformação.
 
 ## Build
 
@@ -119,10 +122,10 @@ path = "test.sh"
 ## Fluxo para um pacote novo
 
 ```bash
-hpc new gcc/9.5.0/zlib/1.3.1 --build-system autotools
+hpc new gcc/16.2.0/zlib/1.3.1 --build-system autotools
 # editar source.url e as opções específicas
-hpc lock gcc/9.5.0/zlib/1.3.1
-hpc validate gcc/9.5.0/zlib/1.3.1
-hpc plan gcc/9.5.0/zlib/1.3.1
-hpc install gcc/9.5.0/zlib/1.3.1
+hpc lock gcc/16.2.0/zlib/1.3.1
+hpc validate gcc/16.2.0/zlib/1.3.1
+hpc plan gcc/16.2.0/zlib/1.3.1
+hpc install gcc/16.2.0/zlib/1.3.1
 ```

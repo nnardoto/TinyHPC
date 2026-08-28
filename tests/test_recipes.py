@@ -27,6 +27,10 @@ OPENMX_SPEC = "gcc/9.5.0/openmpi/5.0.8/openmx/4.0.1"
 GCC16_SPEC = "gcc/16.2.0"
 GCC16_QE_SPEC = "gcc/16.2.0/openmpi/5.0.8/quantum-espresso/7.6"
 GCC16_OPENMX_SPEC = "gcc/16.2.0/openmpi/5.0.8/openmx/4.0.1"
+GCC16_CP2K_SPEC = "gcc/16.2.0/openmpi/5.0.8/cp2k/2026.2"
+GCC16_SIESTA_SPEC = "gcc/16.2.0/openmpi/5.0.8/siesta/5.4.2"
+GCC16_FPM_SPEC = "gcc/16.2.0/fpm/0.13.0"
+GCC16_WANNIER_TOOLS_SPEC = "gcc/16.2.0/openmpi/5.0.8/wannier-tools/2.7.0"
 
 
 class HierarchyTests(unittest.TestCase):
@@ -112,6 +116,49 @@ class HierarchyTests(unittest.TestCase):
                 GCC16_OPENMX_SPEC,
             ],
         )
+        self.assertEqual(
+            self.repository.plan(GCC16_CP2K_SPEC),
+            [
+                *common,
+                "gcc/16.2.0/openblas/0.3.30",
+                "gcc/16.2.0/fftw/3.3.10",
+                "gcc/16.2.0/openmpi/5.0.8/scalapack/2.2.0",
+                "gcc/16.2.0/openmpi/5.0.8/dbcsr/2.10.0",
+                GCC16_CP2K_SPEC,
+            ],
+        )
+        self.assertEqual(
+            self.repository.plan(GCC16_SIESTA_SPEC),
+            [
+                *common,
+                "gcc/16.2.0/openblas/0.3.30",
+                "gcc/16.2.0/fftw/3.3.10",
+                "gcc/16.2.0/openmpi/5.0.8/scalapack/2.2.0",
+                GCC16_SIESTA_SPEC,
+            ],
+        )
+        self.assertEqual(
+            self.repository.plan(GCC16_WANNIER_TOOLS_SPEC),
+            [
+                *common,
+                "gcc/16.2.0/openblas/0.3.30",
+                "gcc/16.2.0/arpack-ng/3.9.1",
+                GCC16_WANNIER_TOOLS_SPEC,
+            ],
+        )
+
+    def test_gcc_16_fpm_uses_only_the_compiler_stack(self):
+        self.assertEqual(
+            self.repository.plan(GCC16_FPM_SPEC),
+            [
+                "core/gmp/6.3.0",
+                "core/mpfr/4.2.2",
+                "core/mpc/1.3.1",
+                "core/isl/0.24",
+                GCC16_SPEC,
+                GCC16_FPM_SPEC,
+            ],
+        )
 
     def test_scientific_stacks_use_native_hybrid_configuration(self):
         for compiler in ("gcc/9.5.0", GCC16_SPEC):
@@ -172,6 +219,21 @@ class HierarchyTests(unittest.TestCase):
 
 
 class ValidationTests(unittest.TestCase):
+    def test_extract_accepts_a_single_source_file(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_recipe(root, "a/1", [])
+            repository = Repository(root)
+            runtime = Runtime(repository)
+            runtime.sources = root / "sources"
+            runtime.sources.mkdir()
+            archive = root / "a.tar.gz"
+            archive.write_text("program a\nend program a\n")
+
+            source = runtime.extract(repository.get("a/1"), archive)
+
+            self.assertEqual((source / "a.tar.gz").read_bytes(), archive.read_bytes())
+
     def test_category_preserves_name_version_hierarchy(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

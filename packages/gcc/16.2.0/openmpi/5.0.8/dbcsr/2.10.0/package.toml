@@ -1,0 +1,63 @@
+schema = 1
+
+[package]
+name = "dbcsr"
+version = "2.10.0"
+description = "DBCSR 2.10.0 with GCC 16.2.0, Open MPI and OpenBLAS"
+dependencies = ["openblas/0.3.30"]
+
+[source]
+url = "https://github.com/cp2k/dbcsr/releases/download/v2.10.0/dbcsr-2.10.0.tar.gz"
+sha256 = "3d897220fbb4498215331efad6905eb7744881b4cf04eb5c5fb4db7c48a56ef9"
+directory = "dbcsr-2.10.0"
+
+[build]
+system = "cmake"
+requires = ["cmake"]
+arguments = [
+  "-DCMAKE_BUILD_TYPE=Release",
+  "-DCMAKE_C_COMPILER=${MPI_ROOT}/bin/mpicc",
+  "-DCMAKE_CXX_COMPILER=${MPI_ROOT}/bin/mpicxx",
+  "-DCMAKE_Fortran_COMPILER=${MPI_ROOT}/bin/mpifort",
+  "-DCMAKE_C_FLAGS_RELEASE=${HPC_OPT_FLAGS}",
+  "-DCMAKE_CXX_FLAGS_RELEASE=${HPC_OPT_FLAGS}",
+  "-DCMAKE_Fortran_FLAGS_RELEASE=${HPC_OPT_FLAGS}",
+  "-DMPI_C_COMPILER=${MPI_ROOT}/bin/mpicc",
+  "-DMPI_CXX_COMPILER=${MPI_ROOT}/bin/mpicxx",
+  "-DMPI_Fortran_COMPILER=${MPI_ROOT}/bin/mpifort",
+  "-DBUILD_SHARED_LIBS=ON",
+  "-DBUILD_TESTING=OFF",
+  "-DWITH_EXAMPLES=OFF",
+  "-DUSE_MPI=ON",
+  "-DUSE_OPENMP=ON",
+  "-DUSE_ACCEL=none",
+  # Pin libdir so the CMake config lands in lib/cmake/dbcsr, matching the
+  # DBCSR_DIR hint used by the CP2K recipe.
+  "-DCMAKE_INSTALL_LIBDIR=lib",
+  "-DBLA_VENDOR=OpenBLAS",
+  "-DBLAS_LIBRARIES=${OPENBLAS_ROOT}/lib/libopenblas.so",
+  "-DLAPACK_LIBRARIES=${OPENBLAS_ROOT}/lib/libopenblas.so",
+  "-DCMAKE_PREFIX_PATH=${OPENBLAS_ROOT}",
+  "-DCMAKE_INSTALL_RPATH=${OPENBLAS_ROOT}/lib;${MPI_ROOT}/lib;${GCC_ROOT}/lib64;${GCC_ROOT}/lib",
+]
+
+[build.environment]
+LD_LIBRARY_PATH = "${TINYHPC_HOST_LD_LIBRARY_PATH}"
+LDFLAGS = "-Wl,-rpath,${GCC_ROOT}/lib64 -Wl,-rpath,${GCC_ROOT}/lib -Wl,-rpath,${MPI_ROOT}/lib -Wl,-rpath,${OPENBLAS_ROOT}/lib"
+
+[module]
+root_environment = ["DBCSR_ROOT"]
+
+[module.paths]
+LD_LIBRARY_PATH = ["lib"]
+LIBRARY_PATH = ["lib"]
+CPATH = ["include"]
+CMAKE_PREFIX_PATH = [""]
+
+[[tests]]
+type = "file"
+path = "lib/libdbcsr.so"
+
+[[tests]]
+type = "file"
+path = "include/dbcsr_api.mod"

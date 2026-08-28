@@ -1,0 +1,158 @@
+--- a/src/sparse.f90
++++ b/src/sparse.f90
+@@ -196,9 +196,7 @@
+    public :: WTParCSRMatrixCreate
+    public :: csr_sort_indices
+    public :: csr_sum_duplicates
+-#if defined (INTELMKL)
+    public :: arpack_sparse_coo_eigs
+-#endif
+ 
+ contains
+ 
+@@ -2162,7 +2160,6 @@
+          return
+       end subroutine csr_sum_duplicates
+ 
+-# if defined (INTELMKL)
+       subroutine arpack_sparse_coo_eigs(ndims,nnzmax,nnz,acoo,jcoo,icoo,neval,nvecs,deval,sigma,zeigv, ritzvec)
+          use para, only : dp
+          implicit none
+@@ -3024,82 +3021,79 @@
+          return
+       end subroutine zmat_arpack_zndrv2
+ 
++      subroutine mkl_zcsrgemv(transa, m, val, indx, indx2, x, y)
++         use para, only : dp
++         implicit none
++         character(len=1), intent(in) :: transa
++         integer, intent(in) :: m
++         complex(dp), intent(in) :: val(*)
++         integer, intent(in) :: indx(*)
++         integer, intent(in) :: indx2(*)
++         complex(dp), intent(in) :: x(*)
++         complex(dp), intent(out) :: y(*)
++         integer :: i, j
++
++         if (transa == 'N' .or. transa == 'n') then
++            do i = 1, m
++               y(i) = 0d0
++               do j = indx(i), indx(i+1) - 1
++                  y(i) = y(i) + val(j) * x(indx2(j))
++               enddo
++            enddo
++         else
++            do i = 1, m
++               y(i) = 0d0
++            enddo
++            do i = 1, m
++               do j = indx(i), indx(i+1) - 1
++                  y(indx2(j)) = y(indx2(j)) + val(j) * x(i)
++               enddo
++            enddo
++         endif
++         return
++      end subroutine mkl_zcsrgemv
++
+       subroutine zmat_mkldss_zgesv(ndims, nnzmax, acsr, jcsr, icsr, xvec, yvec)
+-         use mkl_dss
+          use para, only : dp, stdout
+ 
+          implicit none
+ 
+          ! external arguments
+-         ! dimension of matrix A
+          integer, intent(in) :: ndims
+-
+-         ! non-zero elements of matrix A
+          integer, intent(in) :: nnzmax
+-
+-         ! compressed sparse row storage of matrix A
+          complex(dp), intent(in) :: acsr(nnzmax)
+          integer, intent(in) :: jcsr(nnzmax)
+          integer, intent(in) :: icsr(ndims+1)
+-
+-         ! xvec vector with dimension "ndims"
+          complex(dp), intent(in) :: xvec(ndims)
+-
+-         ! yvec vector with dimension "ndims"
+          complex(dp), intent(out) :: yvec(ndims)
+ 
+          ! local variables
+-         type(mkl_dss_handle) :: handle
+-         integer :: nrhs
+-         integer :: ierr
+-         integer :: perm(1)
+-
+-         !>>> step 0: setup the problem to be solved
+-         nrhs = 1
+-         perm(1) = 0
+-
+-         !>>> step 1: initialize the solver.
+-         ierr = dss_create( handle, mkl_dss_defaults )
+-         if (ierr .ne. mkl_dss_success) then
+-            write(*,*) "mkl_dss_create returned error code", ierr; stop
+-         endif 
+-
+-         !>>> step 2: define the non-zero structure of the matrix.
+-         !ierr = dss_define_structure( handle, mkl_dss_symmetric_structure_complex, icsr, ndims, ndims, jcsr, nnzmax )
+-         ierr = dss_define_structure( handle, MKL_DSS_NON_SYMMETRIC_COMPLEX, icsr, ndims, ndims, jcsr, nnzmax )
+-         if (ierr .ne. mkl_dss_success) then
+-            write(*,*) "mkl_dss_define_structure returned error code", ierr; stop
+-         endif ! back if (ierr .ne. mkl_dss_success} block
+-
+-         !>>> step 3: reorder the matrix.
+-         ierr = dss_reorder( handle, mkl_dss_defaults, perm )
+-         if (ierr .ne. mkl_dss_success) then
+-            write(*,*) "mkl_dss_reorder returned error code", ierr; stop
+-         endif ! back if (ierr .ne. mkl_dss_success} block
+-
+-         !>>> step 4: factor the matrix.
+-         ierr = dss_factor_complex( handle, mkl_dss_defaults, acsr )
+-         if (ierr .ne. mkl_dss_success) then
+-            write(*,*) "mkl_dss_factor_complex returned error code", ierr; stop
+-         endif ! back if (ierr .ne. mkl_dss_success} block
+-
+-         ! allocate the solution vector and solve the problem.
+-         ierr = dss_solve_complex( handle, mkl_dss_defaults, xvec, nrhs, yvec )
+-
+-         if (ierr .ne. mkl_dss_success) then
+-            write(*,*) "mkl_dss_solve_complex returned error code", ierr; stop
+-         endif ! back if (ierr .ne. mkl_dss_success} block
+-
+-         ! deallocate solver storage and various local arrays.
+-         ierr = dss_delete( handle, mkl_dss_defaults )
+-
+-         if (ierr .ne. mkl_dss_success) then
+-            write(*,*) "mkl_dss_solver returned error code", ierr; stop
+-         endif ! back if (ierr .ne. mkl_dss_success} block
++         complex(dp), allocatable :: Adense(:, :)
++         integer, allocatable :: ipiv(:)
++         integer :: i, j, info
++
++         allocate(Adense(ndims, ndims), ipiv(ndims))
++         Adense = 0d0
++         do i = 1, ndims
++            do j = icsr(i), icsr(i+1) - 1
++               Adense(jcsr(j), i) = acsr(j)
++            enddo
++         enddo
++         yvec = xvec
++         call zgetrf(ndims, ndims, Adense, ndims, ipiv, info)
++         if (info .ne. 0) then
++            write(stdout, *) "zgetrf failed in zmat_mkldss_zgesv with info = ", info
++            stop
++         endif
++         call zgetrs('N', ndims, 1, Adense, ndims, ipiv, yvec, ndims, info)
++         if (info .ne. 0) then
++            write(stdout, *) "zgetrs failed in zmat_mkldss_zgesv with info = ", info
++            stop
++         endif
++         deallocate(Adense, ipiv)
+ 
+          return
+       end subroutine zmat_mkldss_zgesv
+-#endif
+ 
+ 
+    end module sparse

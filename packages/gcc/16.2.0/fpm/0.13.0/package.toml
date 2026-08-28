@@ -1,0 +1,32 @@
+schema = 1
+
+[package]
+name = "fpm"
+version = "0.13.0"
+description = "Fortran Package Manager 0.13.0 built with GCC 16.2.0"
+dependencies = []
+
+[source]
+url = "https://github.com/fortran-lang/fpm/releases/download/v0.13.0/fpm-0.13.0.F90"
+archive = "fpm-0.13.0.F90"
+sha256 = "001cff6cf1145f215baa0888ba27acc06cea30a89b79d1a8be97db3fffbc8cd2"
+directory = "fpm-0.13.0"
+
+[build]
+system = "script"
+script = "build.sh"
+requires = ["install"]
+
+[module]
+root_environment = ["FPM_ROOT"]
+
+[module.paths]
+PATH = ["bin"]
+
+[[tests]]
+type = "executable"
+path = "bin/fpm"
+
+[[tests]]
+type = "command"
+command = ["{prefix}/bin/fpm", "--version"]

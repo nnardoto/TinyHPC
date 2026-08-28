@@ -1,0 +1,47 @@
+schema = 1
+
+[package]
+name = "arpack-ng"
+version = "3.9.1"
+description = "ARPACK-NG 3.9.1 built with GCC 16.2.0 and OpenBLAS"
+dependencies = ["openblas/0.3.30"]
+
+[source]
+url = "https://github.com/opencollab/arpack-ng/archive/refs/tags/3.9.1.tar.gz"
+archive = "arpack-ng-3.9.1.tar.gz"
+sha256 = "f6641deb07fa69165b7815de9008af3ea47eb39b2bb97521fbf74c97aba6e844"
+directory = "arpack-ng-3.9.1"
+
+[build]
+system = "cmake"
+requires = ["cmake"]
+arguments = [
+  "-DCMAKE_BUILD_TYPE=Release",
+  "-DCMAKE_Fortran_COMPILER=${GCC_ROOT}/bin/gfortran",
+  "-DCMAKE_Fortran_FLAGS_RELEASE=${HPC_OPT_FLAGS}",
+  "-DBUILD_SHARED_LIBS=ON",
+  # ICB builds the alternative isolated-complex-block routines; WannierTools
+  # links the classic znaupd/zneupd symbols, which are produced when ICB=OFF.
+  "-DICB=OFF",
+  "-DBLAS_LIBRARIES=${OPENBLAS_ROOT}/lib/libopenblas.so",
+  "-DLAPACK_LIBRARIES=${OPENBLAS_ROOT}/lib/libopenblas.so",
+  "-DCMAKE_INSTALL_RPATH=${OPENBLAS_ROOT}/lib;${GCC_ROOT}/lib64;${GCC_ROOT}/lib",
+]
+
+[build.environment]
+# The system cmake is a C++ binary that must load the host libstdc++, not the
+# toolchain's one. Reset LD_LIBRARY_PATH and embed rpaths instead.
+LD_LIBRARY_PATH = "${TINYHPC_HOST_LD_LIBRARY_PATH}"
+LDFLAGS = "-Wl,-rpath,${GCC_ROOT}/lib64 -Wl,-rpath,${GCC_ROOT}/lib -Wl,-rpath,${OPENBLAS_ROOT}/lib"
+
+[module]
+root_environment = ["ARPACK_ROOT"]
+
+[module.paths]
+LD_LIBRARY_PATH = ["lib"]
+LIBRARY_PATH = ["lib"]
+PKG_CONFIG_PATH = ["lib/pkgconfig"]
+
+[[tests]]
+type = "file"
+path = "lib/libarpack.so"

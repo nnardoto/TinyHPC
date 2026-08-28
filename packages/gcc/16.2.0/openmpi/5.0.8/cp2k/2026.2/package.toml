@@ -1,0 +1,61 @@
+schema = 1
+
+[package]
+name = "cp2k"
+version = "2026.2"
+description = "CP2K 2026.2 optimized for GCC 16.2.0 with MPI and OpenMP"
+dependencies = ["openblas/0.3.30", "fftw/3.3.10", "scalapack/2.2.0", "dbcsr/2.10.0"]
+
+[source]
+url = "https://github.com/cp2k/cp2k/releases/download/v2026.2/cp2k-2026.2.tar.bz2"
+sha256 = "f9bd86f580f57a53a0768c0045d1417f9f9a1d66d851ed7f662f496200043373"
+directory = "cp2k-2026.2"
+
+[build]
+system = "cmake"
+requires = ["cmake", "git"]
+arguments = [
+  "-DCMAKE_BUILD_TYPE=Release",
+  "-DCMAKE_C_COMPILER=${MPI_ROOT}/bin/mpicc",
+  "-DCMAKE_CXX_COMPILER=${MPI_ROOT}/bin/mpicxx",
+  "-DCMAKE_Fortran_COMPILER=${MPI_ROOT}/bin/mpifort",
+  "-DCMAKE_C_FLAGS_RELEASE=${HPC_OPT_FLAGS}",
+  "-DCMAKE_CXX_FLAGS_RELEASE=${HPC_OPT_FLAGS}",
+  "-DCMAKE_Fortran_FLAGS_RELEASE=${HPC_OPT_FLAGS}",
+  "-DMPI_C_COMPILER=${MPI_ROOT}/bin/mpicc",
+  "-DMPI_CXX_COMPILER=${MPI_ROOT}/bin/mpicxx",
+  "-DMPI_Fortran_COMPILER=${MPI_ROOT}/bin/mpifort",
+  "-DCP2K_USE_MPI=ON",
+  "-DCP2K_USE_MPI_F08=ON",
+  "-DCP2K_USE_FFTW3=ON",
+  "-DCP2K_ENABLE_FFTW3_OPENMP_SUPPORT=ON",
+  "-DCP2K_USE_DBCSR_CONFIG=ON",
+  "-DCP2K_DBCSR_USE_CPU_ONLY=ON",
+  "-DCP2K_BLAS_VENDOR=OpenBLAS",
+  "-DCP2K_SCALAPACK_VENDOR=GENERIC",
+  "-DCP2K_FFTW3_ROOT=${FFTW_ROOT}",
+  "-DCP2K_SCALAPACK_ROOT=${SCALAPACK_ROOT}",
+  "-DDBCSR_DIR=${DBCSR_ROOT}/lib/cmake/dbcsr",
+  "-DCMAKE_PREFIX_PATH=${DBCSR_ROOT};${OPENBLAS_ROOT};${FFTW_ROOT};${SCALAPACK_ROOT}",
+  "-DCMAKE_INSTALL_RPATH=${DBCSR_ROOT}/lib;${SCALAPACK_ROOT}/lib;${OPENBLAS_ROOT}/lib;${FFTW_ROOT}/lib;${MPI_ROOT}/lib;${GCC_ROOT}/lib64;${GCC_ROOT}/lib",
+]
+
+[build.environment]
+LD_LIBRARY_PATH = "${TINYHPC_HOST_LD_LIBRARY_PATH}"
+LDFLAGS = "-Wl,-rpath,${GCC_ROOT}/lib64 -Wl,-rpath,${GCC_ROOT}/lib -Wl,-rpath,${MPI_ROOT}/lib -Wl,-rpath,${OPENBLAS_ROOT}/lib -Wl,-rpath,${FFTW_ROOT}/lib -Wl,-rpath,${SCALAPACK_ROOT}/lib -Wl,-rpath,${DBCSR_ROOT}/lib"
+PKG_CONFIG_PATH = "${OPENBLAS_ROOT}/lib/pkgconfig:${FFTW_ROOT}/lib/pkgconfig:${SCALAPACK_ROOT}/lib/pkgconfig"
+
+[module]
+root_environment = ["CP2K_ROOT"]
+
+[module.paths]
+PATH = ["bin"]
+LD_LIBRARY_PATH = ["lib"]
+
+[[tests]]
+type = "executable"
+path = "bin/cp2k.psmp"
+
+[[tests]]
+type = "command"
+command = ["{prefix}/bin/cp2k.psmp", "--version"]

@@ -28,10 +28,10 @@ O bootstrap é idempotente: instala o gerenciador em `/opt/tinyhpc`, cria o CLI 
 hpc --help
 hpc list
 hpc installed
-hpc info gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6
-hpc plan gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6
-hpc install gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6
-module load gcc/9.5.0
+hpc info gcc/16.2.0/openmpi/5.0.8/quantum-espresso/7.6
+hpc plan gcc/16.2.0/openmpi/5.0.8/quantum-espresso/7.6
+hpc install gcc/16.2.0/openmpi/5.0.8/quantum-espresso/7.6
+module load gcc/16.2.0
 module load openmpi/5.0.8
 module load quantum-espresso/7.6
 command -v pw.x
@@ -80,7 +80,7 @@ correspondente após atualizar o TinyHPC.
 
 ## Arquitetura, configuração e receitas
 
-O projeto separa o gerenciador (`/opt/tinyhpc`) da stack gerenciada (`/opt/hpc`). Receitas são TOML hierárquicos em `packages/`; o caminho define categoria, identidade e herança (por exemplo, `core/gmp/6.3.0` e `gcc/9.5.0/openmpi/5.0.8`). Veja [docs/configuration.md](docs/configuration.md) e [docs/recipes.md](docs/recipes.md).
+O projeto separa o gerenciador (`/opt/tinyhpc`) da stack gerenciada (`/opt/hpc`). Receitas são TOML hierárquicos em `packages/`; o caminho define categoria, identidade e herança (por exemplo, `core/gmp/6.3.0` e `gcc/16.2.0/openmpi/5.0.8`). Veja [docs/configuration.md](docs/configuration.md) e [docs/recipes.md](docs/recipes.md).
 
 ## Receitas disponíveis
 
@@ -88,12 +88,14 @@ O projeto separa o gerenciador (`/opt/tinyhpc`) da stack gerenciada (`/opt/hpc`)
 - MPFR 4.1.0 e 4.2.2;
 - MPC 1.2.1 e 1.3.1;
 - ISL 0.24 (Graphite no GCC 9.5.0 e 16.2.0);
-- GCC 9.5.0 e 16.2.0;
+- GCC 16.2.0 (padrão) e GCC 9.5.0 (compatibilidade legada);
 - OpenBLAS 0.3.30 (GCC 9.5.0 e 16.2.0);
 - FFTW 3.3.10 (GCC 9.5.0 e 16.2.0);
 - Open MPI 5.0.8 (GCC 9.5.0 e 16.2.0);
 - ScaLAPACK 2.2.0 (ambas as stacks Open MPI + OpenBLAS);
-- Quantum ESPRESSO 6.5 e 7.6, e OpenMX 4.0.1 (ambas as stacks completas).
+- ARPACK-NG 3.9.1 (GCC 16.2.0, dependência do WannierTools);
+- Quantum ESPRESSO 6.5 e 7.6 e OpenMX 4.0.1 (ambas as stacks completas);
+- CP2K 2026.2, SIESTA 5.4.2, WannierTools 2.7.0 e fpm 0.13.0 (GCC 16.2.0);
 
 As receitas científicas respeitam `build.profile` (`native` por padrão), usam
 MPI + OpenMP e mantêm o OpenBLAS sequencial para evitar oversubscription. Veja

@@ -1,0 +1,28 @@
+schema = 1
+
+[package]
+name = "wannier-tools"
+version = "2.7.0"
+description = "WannierTools 2.7.0 built with GCC 16.2.0, Open MPI, OpenBLAS and ARPACK"
+dependencies = ["openblas/0.3.30", "arpack-ng/3.9.1"]
+
+[source]
+url = "https://github.com/quanshengwu/wannier_tools/archive/refs/tags/v2.7.0.tar.gz"
+archive = "wannier_tools-2.7.0.tar.gz"
+sha256 = "4c744da7996d43df2c0810a7ff6fb09d7d690eaf6a2bf56e48f8a0ea6c673b2e"
+directory = "wannier_tools-2.7.0"
+
+[build]
+system = "script"
+script = "build.sh"
+requires = ["install", "make"]
+
+[module]
+root_environment = ["WANNIER_TOOLS_ROOT"]
+
+[module.paths]
+PATH = ["bin"]
+
+[[tests]]
+type = "executable"
+path = "bin/wt.x"

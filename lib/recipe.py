@@ -637,6 +637,10 @@ class Runtime:
         source = self.source_path(recipe)
         shutil.rmtree(source, ignore_errors=True)
         note(f"extraindo {archive.name}")
+        if not tarfile.is_tarfile(archive):
+            source.mkdir(parents=True)
+            shutil.copy2(archive, source / archive.name)
+            return source
         with tarfile.open(archive) as bundle:
             base = self.sources.resolve()
             # Reject members that resolve outside the source tree before any
