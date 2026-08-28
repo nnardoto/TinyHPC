@@ -14,8 +14,13 @@ directory = "openmpi-5.0.8"
 [build]
 system = "autotools"
 arguments = [
-  "CFLAGS=${HPC_OPT_FLAGS}",
-  "CXXFLAGS=${HPC_OPT_FLAGS}",
+  # Pin PMIx to the bundled copy so a host PMIx (e.g. a newer Spack build)
+  # cannot leak in and break the bundled PRRTE.
+  "--with-pmix=internal",
+  # GCC 16 inlines Open MPI's always_inline helpers so aggressively that the
+  # default inline size limit is exceeded; raise it so the build succeeds.
+  "CFLAGS=${HPC_OPT_FLAGS} --param max-inline-insns-single=100000",
+  "CXXFLAGS=${HPC_OPT_FLAGS} --param max-inline-insns-single=100000",
   "FCFLAGS=${HPC_OPT_FLAGS}",
 ]
 
