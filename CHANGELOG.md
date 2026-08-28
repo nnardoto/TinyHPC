@@ -1,5 +1,9 @@
 # Changelog
 
+## [unreleased]
+
+- `hpc list` e `hpc installed` exibem as receitas em árvore por padrão, com `--module` (seções no estilo `module avail`) e `--flat` (uma spec por linha), além de drill-down por prefixo com autocomplete nos três shells.
+
 ## v0.1.0 — engine TOML e CLI hierárquico
 
 Versão inicial do TinyHPC.

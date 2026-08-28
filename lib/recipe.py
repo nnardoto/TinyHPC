@@ -922,6 +922,80 @@ def command_new(repository: Repository, spec: str, system: str) -> None:
     print(path)
 
 
+def pair_nodes(spec: str) -> list[str]:
+    # Decompose a spec into display nodes: an optional leading category (odd
+    # path length) followed by name/version pairs, e.g. "core/gmp/6.1.0" ->
+    # ["core", "gmp/6.1.0"] and "gcc/16.2.0/openmpi/5.0.8" ->
+    # ["gcc/16.2.0", "openmpi/5.0.8"].
+    parts = spec.strip("/").split("/")
+    if not parts or any(part == "" for part in parts):
+        return []
+    nodes: list[str] = []
+    if len(parts) % 2 == 1:
+        nodes.append(parts[0])
+        parts = parts[1:]
+    nodes.extend(f"{parts[index]}/{parts[index + 1]}" for index in range(0, len(parts), 2))
+    return nodes
+
+
+def filter_by_prefix(specs: list[str], prefix: str) -> list[str]:
+    normalized = prefix.strip("/")
+    if not normalized:
+        return list(specs)
+    matches = [spec for spec in specs if spec == normalized or spec.startswith(normalized + "/")]
+    if not matches:
+        die(f"spec não encontrada: {prefix}")
+    return matches
+
+
+def render_tree(specs: list[str]) -> str:
+    root: dict[str, dict] = {}
+    for spec in sorted(specs):
+        level = root
+        for node in pair_nodes(spec):
+            level = level.setdefault(node, {})
+    lines: list[str] = []
+
+    def walk(level: dict, prefix: str) -> None:
+        items = sorted(level.items())
+        for index, (label, subtree) in enumerate(items):
+            last = index == len(items) - 1
+            lines.append(prefix + ("└── " if last else "├── ") + label)
+            walk(subtree, prefix + ("    " if last else "│   "))
+
+    walk(root, "")
+    return "\n".join(lines)
+
+
+def render_module(specs: list[str], width: int = 80) -> str:
+    sections: list[str] = []
+    groups: dict[str, list[str]] = {}
+    for spec in sorted(specs):
+        nodes = pair_nodes(spec)
+        if not nodes:
+            continue
+        section = "/".join(nodes[:-1])
+        leaf = nodes[-1]
+        if section not in groups:
+            groups[section] = []
+            sections.append(section)
+        groups[section].append(leaf)
+
+    lines: list[str] = []
+    gap = 2
+    for section in sections:
+        labels = groups[section]
+        if lines:
+            lines.append("")
+        lines.append(section or "(raiz)")
+        column = max(len(label) for label in labels) + gap
+        per_row = max(1, width // column)
+        for start in range(0, len(labels), per_row):
+            row = labels[start:start + per_row]
+            lines.append("  " + "".join(label.ljust(column) for label in row).rstrip())
+    return "\n".join(lines)
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(prog="hpc-recipe")
     result.add_argument("--repo", type=Path, required=True)
@@ -931,8 +1005,11 @@ def parser() -> argparse.ArgumentParser:
         command.add_argument("spec")
     validate = subcommands.add_parser("validate")
     validate.add_argument("spec", nargs="?")
-    subcommands.add_parser("list")
-    subcommands.add_parser("list-installed")
+    for name in ("list", "list-installed"):
+        command = subcommands.add_parser(name)
+        command.add_argument("prefix", nargs="?")
+        command.add_argument("--flat", action="store_true")
+        command.add_argument("--module", action="store_true")
     subcommands.add_parser("compilers")
     subcommands.add_parser("compiler-current")
     compiler_set = subcommands.add_parser("compiler-set")
@@ -966,13 +1043,19 @@ def main() -> int:
         print(f"config={user_configuration or 'defaults'}")
         for key in CONFIG_ENVIRONMENT:
             print(f"{key}={os.environ[key]}")
-    elif command == "list":
-        print("\n".join(sorted(repository.recipes)))
-    elif command == "list-installed":
-        installed = (
-            recipe.spec for recipe in repository.recipes.values() if runtime.installed(recipe)
-        )
-        print("\n".join(sorted(installed)))
+    elif command in ("list", "list-installed"):
+        if command == "list-installed":
+            specs = [recipe.spec for recipe in repository.recipes.values() if runtime.installed(recipe)]
+        else:
+            specs = list(repository.recipes)
+        if arguments.prefix:
+            specs = filter_by_prefix(specs, arguments.prefix)
+        if arguments.flat:
+            print("\n".join(sorted(specs)))
+        elif arguments.module:
+            print(render_module(specs))
+        else:
+            print(render_tree(specs))
     elif command == "compilers":
         current = resolver.validate_compiler_context(read_compiler())
         for compiler in resolver.list_compilers():

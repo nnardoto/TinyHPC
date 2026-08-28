@@ -25,8 +25,8 @@ TinyHPC - gerenciador de stacks HPC
 Uso: hpc <comando> [opções]
 
 Catálogo e ambiente:
-  list                         Lista as receitas disponíveis
-  installed                    Lista as instalações válidas
+  list [prefix] [--flat|--module]  Lista as receitas em árvore (padrão)
+  installed [prefix] [--flat|--module] Lista as instalações válidas
   info <spec>                  Exibe detalhes de uma receita
   compilers                    Lista os compiladores disponíveis
   compiler [<spec>|--clear]    Exibe, seleciona ou limpa o compilador atual
@@ -171,11 +171,10 @@ hpc_install_spec() {
 
 case "${1:-}" in
     list)
-        recipe list
+        recipe list "${@:2}"
         ;;
     installed)
-        [[ $# -eq 1 ]] || hpc_die "uso: hpc installed"
-        recipe list-installed
+        recipe list-installed "${@:2}"
         ;;
     compilers)
         [[ $# -eq 1 ]] || hpc_die "uso: hpc compilers"

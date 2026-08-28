@@ -37,7 +37,9 @@ module load quantum-espresso/7.6
 command -v pw.x
 ```
 
-`hpc list` mostra as receitas disponíveis, `hpc installed` lista as instalações válidas, `hpc info` exibe metadados e dependências, `hpc plan` imprime a ordem de build (GMP, MPFR, MPC, GCC, Open MPI, OpenBLAS, FFTW, ScaLAPACK e Quantum ESPRESSO) e `hpc install` resolve as dependências, reutilizando o que já está instalado.
+`hpc list` mostra as receitas disponíveis em árvore (agrupadas por categoria, compilador e hierarquia de dependências), `hpc installed` lista as instalações válidas, `hpc info` exibe metadados e dependências, `hpc plan` imprime a ordem de build (GMP, MPFR, MPC, GCC, Open MPI, OpenBLAS, FFTW, ScaLAPACK e Quantum ESPRESSO) e `hpc install` resolve as dependências, reutilizando o que já está instalado.
+
+`hpc list` aceita um prefixo para restringir a árvore (ex.: `hpc list gcc/16.2.0/openmpi`) e as flags `--flat` (uma spec por linha, para scripts) e `--module` (agrupado por seções, no estilo `module avail`). `hpc installed` aceita as mesmas opções.
 
 ### Specs curtas e contexto de compilador
 

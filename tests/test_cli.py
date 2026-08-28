@@ -91,10 +91,38 @@ class BashCliTests(unittest.TestCase):
                 )
 
             output = self.run_cli(
-                "installed", environment={"TINYHPC_ROOT": str(stack)}
+                "installed", "--flat", environment={"TINYHPC_ROOT": str(stack)}
             )
 
         self.assertEqual(output.splitlines(), [valid.spec])
+
+    def test_list_default_renders_tree(self):
+        output = self.run_cli("list")
+        self.assertIn("gcc/16.2.0", output)
+        self.assertIn("└── gcc/9.5.0", output)
+        self.assertIn("openmpi/5.0.8", output)
+
+    def test_list_flat_keeps_one_spec_per_line(self):
+        output = self.run_cli("list", "--flat")
+        self.assertEqual(output.splitlines()[0], "core/gmp/6.1.0")
+        self.assertIn("gcc/16.2.0/openmpi/5.0.8/quantum-espresso/7.6", output.splitlines())
+        self.assertNotIn("├──", output)
+
+    def test_list_module_groups_by_section(self):
+        output = self.run_cli("list", "--module")
+        self.assertIn("(raiz)", output)
+        self.assertIn("gcc/16.2.0/openmpi/5.0.8", output)
+        self.assertIn("quantum-espresso/7.6", output)
+
+    def test_list_prefix_drills_down_subtree(self):
+        output = self.run_cli("list", "gcc/9.5.0/openmpi")
+        self.assertIn("quantum-espresso/7.6", output)
+        self.assertNotIn("gcc/16.2.0", output)
+
+    def test_list_unknown_prefix_fails(self):
+        result = self.run_cli_process("list", "naoexiste")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("spec não encontrada: naoexiste", result.stderr)
 
     def test_bash_interface_registers_command_completion(self):
         result = subprocess.run(

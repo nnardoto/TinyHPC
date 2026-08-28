@@ -28,12 +28,20 @@ _tinyhpc_complete() {
             _describe 'compilador' values
             ;;
         remove)
-            values=("${(@f)$(hpc installed 2>/dev/null)}")
+            values=("${(@f)$(hpc installed --flat 2>/dev/null)}")
             _describe 'spec instalada' values
             ;;
         info|resolve|plan|validate|lock|install|clean)
-            values=("${(@f)$(hpc list 2>/dev/null)}")
+            values=("${(@f)$(hpc list --flat 2>/dev/null)}")
             _describe 'spec' values
+            ;;
+        list)
+            values=("${(@f)$(hpc list --flat 2>/dev/null)}" --flat --module)
+            _describe 'spec' values
+            ;;
+        installed)
+            values=("${(@f)$(hpc installed --flat 2>/dev/null)}" --flat --module)
+            _describe 'spec instalada' values
             ;;
         env)
             _values 'shell' --shell bash zsh fish

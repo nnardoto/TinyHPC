@@ -28,10 +28,16 @@ _tinyhpc_complete() {
             COMPREPLY=($(compgen -W "$output --clear" -- "$current"))
             ;;
         remove)
-            COMPREPLY=($(compgen -W "$(command hpc installed 2>/dev/null)" -- "$current"))
+            COMPREPLY=($(compgen -W "$(command hpc installed --flat 2>/dev/null)" -- "$current"))
+            ;;
+        list)
+            COMPREPLY=($(compgen -W "$(command hpc list --flat 2>/dev/null) --flat --module" -- "$current"))
+            ;;
+        installed)
+            COMPREPLY=($(compgen -W "$(command hpc installed --flat 2>/dev/null) --flat --module" -- "$current"))
             ;;
         info|resolve|plan|validate|lock|install|clean)
-            COMPREPLY=($(compgen -W "$(command hpc list 2>/dev/null)" -- "$current"))
+            COMPREPLY=($(compgen -W "$(command hpc list --flat 2>/dev/null)" -- "$current"))
             ;;
         env)
             COMPREPLY=($(compgen -W "--shell bash zsh fish" -- "$current"))
