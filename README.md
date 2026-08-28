@@ -126,7 +126,8 @@ Receitas completas ou funcionais:
 - MPFR 4.1.0 (`gmp/6.1.0`);
 - MPC 1.2.1 (`gmp/6.1.0`, `mpfr/4.1.0`);
 - GCC 9.5.0 (`gmp/6.1.0`, `mpfr/4.1.0`, `mpc/1.2.1`);
-- OpenMPI 5.0.8 + GCC 9.5.0.
+- OpenMPI 5.0.8 + GCC 9.5.0;
+- OpenBLAS 0.3.30 + GCC 9.5.0 (`DYNAMIC_ARCH=1`, BLAS/LAPACK testados).
 
 GCC é configurado com os prefixos fornecidos pelos modulefiles das três dependências e com ISL desabilitado nesta etapa. Isso evita dependências silenciosas em pacotes `*-devel` da distribuição e mantém download, versão e checksum sob controle do TinyHPC.
 
@@ -150,3 +151,21 @@ com resolução automática de toda a stack.
 ## Filosofia
 
 O Git guarda apenas o que torna a instalação reproduzível: receitas, versões, URLs, checksums, patches, modulefiles e testes. Fontes extraídas e builds podem ser descartados; o cache de downloads pode ser preservado.
+
+## OpenMX 4.0 + patch 4.0.1
+
+OpenMX is exposed as the stable recipe spec `openmx/4.0`; the installed module
+is `openmx/4.0.1-gcc9`, reflecting the official patch level.
+
+The OpenMX project does not publish SHA-256 values alongside the source and
+patch links. Lock the exact official downloads once on a connected machine:
+
+```fish
+./tools/lock-checksum.fish openmx/4.0 --write
+./bootstrap.fish
+source ~/.config/fish/conf.d/tinyhpc.fish
+hpc install openmx/4.0
+```
+
+Once the resulting `package.conf` is committed, subsequent installations use
+the normal TinyHPC checksum-verification path without this bootstrap step.

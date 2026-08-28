@@ -1,11 +1,32 @@
 # Changelog
 
+## v0.6.0
+
+- add complete FFTW 3.3.10 GCC 9 recipe
+- enable shared FFTW libraries and pthread threading
+- add functional threaded forward/backward DFT tests for Fish and Bash
+- lock FFTW 3.3.10 SHA-256
+
+## v0.5.0 — OpenBLAS 0.3.30
+
+- adiciona receita completa `openblas/0.3.30-gcc9`;
+- build portátil com `DYNAMIC_ARCH=1` e threading pthread;
+- usa `NO_AFFINITY=1` para não impor afinidade sobre SLURM/usuário;
+- embute rpath para os runtimes do GCC 9 sem adicionar o runtime do GCC a `LD_LIBRARY_PATH`;
+- testes numéricos de BLAS (`DGEMM`) e LAPACK (`DGESV`);
+- receitas equivalentes em Fish e Bash.
+
 ## v0.4.3 — GCC module sem contaminação do shell
 
 - remove `gcc/9.5.0/lib64` e `gcc/9.5.0/lib` de `LD_LIBRARY_PATH` no modulefile do GCC;
 - evita que carregar GCC 9.5.0 force o Fish e outras ferramentas do sistema a usar uma `libstdc++.so.6` antiga;
 - mantém `PATH`, `LIBRARY_PATH`, `CPATH`, `CC`, `CXX`, `FC` e `GCC_ROOT` para o ambiente de compilação;
 - modulefiles instalados continuam sendo sincronizados automaticamente ao reutilizar um pacote já instalado.
+
+## v0.4.2 — sincronização de modulefiles
+
+- sincroniza modulefiles instalados com a receita atual antes de reutilizar um pacote;
+- evita estado obsoleto após mudanças de receita ou versão.
 
 ## v0.4.1 — MPC 1.2.1 e modulefiles robustos
 
@@ -50,6 +71,15 @@
 - receita GCC 9.5.0 funcional;
 - receita OpenMPI 5.0.8 + GCC 9.5.0 com dependência automática, checksum, teste, modulefile e variante Bash.
 
-## v0.4.2
-- Synchronize installed modulefiles with recipe definitions before reuse.
-- Prevent stale modulefiles after recipe/version updates.
+## v0.7.0
+- Add complete ScaLAPACK 2.2.0 recipe for GCC 9.5.0 + OpenMPI 5.0.8 + OpenBLAS 0.3.30.
+- Pass BLAS/LAPACK and MPI compilers explicitly to CMake.
+- Add a two-rank BLACS functional smoke test.
+
+## v0.8.0
+
+- Added the complete OpenMX 4.0 recipe targeting the official 4.0.1 patch.
+- Added GNU-stack wiring for OpenMPI, OpenBLAS, FFTW and ScaLAPACK.
+- Added a one-rank H2O OpenMX smoke test.
+- Extended `tools/lock-checksum.fish` to lock multiple upstream artifacts and
+  optionally write checksums back to a manifest with `--write`.
