@@ -37,6 +37,13 @@ arguments = [
   "-DQE_ENABLE_TEST=OFF",
 ]
 
+[build.environment]
+# The system cmake is a C++ binary that must load the host libstdc++, not the
+# toolchain's older one (which lacks recent GLIBCXX symbols). Reset
+# LD_LIBRARY_PATH and embed rpaths instead.
+LD_LIBRARY_PATH = "${TINYHPC_HOST_LD_LIBRARY_PATH}"
+LDFLAGS = "-Wl,-rpath,${GCC_ROOT}/lib64 -Wl,-rpath,${GCC_ROOT}/lib -Wl,-rpath,${MPI_ROOT}/lib -Wl,-rpath,${OPENBLAS_ROOT}/lib -Wl,-rpath,${FFTW_ROOT}/lib -Wl,-rpath,${SCALAPACK_ROOT}/lib"
+
 [module]
 root_environment = ["QE_ROOT"]
 
