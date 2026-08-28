@@ -17,8 +17,10 @@ system = "cmake"
 requires = ["cmake"]
 arguments = [
   "-DCMAKE_BUILD_TYPE=Release",
-  "-DCMAKE_C_FLAGS_RELEASE=${HPC_OPT_FLAGS}",
-  "-DCMAKE_Fortran_FLAGS_RELEASE=${HPC_OPT_FLAGS}",
+  # BLACS uses pre-C99 implicit function declarations; GCC 14+ rejects them.
+  "-DCMAKE_C_FLAGS_RELEASE=${HPC_OPT_FLAGS} -std=gnu89",
+  # Older ScaLAPACK calls BLACS with mismatched argument ranks; allow it.
+  "-DCMAKE_Fortran_FLAGS_RELEASE=${HPC_OPT_FLAGS} -fallow-argument-mismatch",
   "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
   "-DCMAKE_C_COMPILER=${MPI_ROOT}/bin/mpicc",
   "-DCMAKE_Fortran_COMPILER=${MPI_ROOT}/bin/mpifort",
