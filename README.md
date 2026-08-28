@@ -1,171 +1,66 @@
 # TinyHPC
 
-**TinyHPC — minimal tooling for reproducible HPC.**
+TinyHPC é um gerenciador pessoal e reproduzível de stacks HPC: um CLI em Bash com receitas TOML, Lmod e Python que instala e mantém software científico de forma determinística.
 
-TinyHPC é um gerenciador pessoal, pequeno e reproduzível para stacks HPC. O CLI é escrito em Fish, usa Lmod para ambientes e mantém receitas versionadas com checksums, patches, testes e modulefiles. Receitas Bash podem ser fornecidas como caminho de compatibilidade.
+## Requisitos
 
-## Arquitetura
+- Linux;
+- Bash (motor, CLI e bootstrap);
+- Python 3.9 ou mais recente (o parser TOML está incluído no repositório);
+- ferramentas de build por receita (`curl`, `tar`, `make`, `cmake`, `patch`, `sha256sum`, etc.);
+- Lmod: detectado ou instalado automaticamente pelo bootstrap (`pacman`, `apt-get`, `dnf` ou `zypper`).
 
-O projeto separa deliberadamente a ferramenta da stack que ela administra:
-
-```text
-~/src/TinyHPC/        # clone Git / desenvolvimento
-        │
-        └── bootstrap
-              ↓
-/opt/tinyhpc/         # instalação do gerenciador
-/usr/local/bin/hpc    # CLI
-
-/opt/hpc/             # stack gerenciada
-├── cache/
-├── src/
-├── build/
-├── software/
-├── modulefiles/
-└── logs/
-```
-
-As duas raízes são configuráveis:
-
-```text
-TINYHPC_HOME=/opt/tinyhpc
-TINYHPC_ROOT=/opt/hpc
-```
-
-As receitas não devem depender diretamente desses caminhos padrão.
-
-## Bootstrap
-
-### Fish (principal)
-
-```fish
-./bootstrap.fish
-source ~/.config/fish/conf.d/tinyhpc.fish
-hpc doctor
-```
-
-### Bash
+## Quick start
 
 ```bash
+git clone https://github.com/nnardoto/TinyHPC.git
+cd TinyHPC
 ./bootstrap.sh
 source ~/.config/tinyhpc/bashrc
 hpc doctor
 ```
 
-O bootstrap é idempotente e:
+O bootstrap é idempotente: instala o gerenciador em `/opt/tinyhpc`, cria o CLI `/usr/local/bin/hpc`, monta a árvore `/opt/hpc`, configura o Lmod e gera as interfaces de shell. `hpc doctor` verifica o ambiente e as ferramentas necessárias.
 
-- detecta ou instala Lmod;
-- no bootstrap Bash, instala Fish se necessário, pois `hpc` usa Fish;
-- instala uma cópia do TinyHPC em `/opt/tinyhpc`;
-- cria `/usr/local/bin/hpc` apontando para `/opt/tinyhpc/bin/hpc`;
-- cria a árvore gerenciada em `/opt/hpc`;
-- adiciona `/opt/hpc/modulefiles` ao Lmod;
-- grava `TINYHPC_HOME` e `TINYHPC_ROOT` no ambiente do usuário.
-
-Gerenciadores de pacotes detectados atualmente: `pacman`, `apt-get`, `dnf` e `zypper`.
-
-Para usar outros prefixos desde o primeiro bootstrap:
+## Uso
 
 ```bash
-TINYHPC_HOME="$HOME/.local/opt/tinyhpc" \
-TINYHPC_ROOT="$HOME/.local/hpc" \
-./bootstrap.sh
-```
-
-> O symlink global em `/usr/local/bin/hpc` ainda requer privilégio administrativo.
-
-## Comandos
-
-```text
 hpc list
-hpc info <spec>
-hpc install <spec>
-hpc clean <spec>
-hpc remove <spec>
-hpc doctor
+hpc info gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6
+hpc plan gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6
+hpc install gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6
+module load gcc/9.5.0
+module load openmpi/5.0.8
+module load quantum-espresso/7.6
+command -v pw.x
 ```
 
-Exemplo:
+`hpc list` mostra as receitas disponíveis, `hpc info` exibe metadados e dependências, `hpc plan` imprime a ordem de build (GMP, MPFR, MPC, GCC, Open MPI, OpenBLAS, FFTW, ScaLAPACK e Quantum ESPRESSO) e `hpc install` resolve as dependências, reutilizando o que já está instalado.
 
-```fish
-hpc info openmpi/5.0.8-gcc9
-hpc install openmpi/5.0.8-gcc9
-module load openmpi/5.0.8-gcc9
-mpirun --version
-```
+## Shells
 
-`openmpi/5.0.8-gcc9` declara `gcc/9.5.0` como dependência. O GCC, por sua vez, declara seus pré-requisitos matemáticos como receitas normais:
-
-```text
-gmp/6.1.0
-   ├──> mpfr/4.1.0
-   └────────────┐
-                ├──> mpc/1.2.1
-mpfr/4.1.0 ─────┘
-
-(gmp, mpfr, mpc) ──> gcc/9.5.0 ──> openmpi/5.0.8-gcc9
-```
-
-O CLI resolve essa árvore recursivamente e reutiliza dependências já instaladas. Não há solver separado: o mecanismo é apenas a recursão sobre `depends=` do manifesto.
-
-## Shell das receitas
-
-Fish é o formato principal. Um pacote pode fornecer `build.sh` e `test.sh` equivalentes:
+Bash, Zsh e Fish têm interfaces sourceáveis criadas pelo bootstrap:
 
 ```bash
-HPC_RECIPE_SHELL=bash hpc install openmpi/5.0.8-gcc9
+source ~/.config/tinyhpc/bashrc    # Bash
+source ~/.config/tinyhpc/zshrc     # Zsh
+source ~/.config/tinyhpc/fish.fish # Fish
 ```
 
-O manifesto `package.conf`, patches e modulefile são compartilhados pelas duas implementações.
+## Arquitetura, configuração e receitas
 
-## Estado atual
+O projeto separa o gerenciador (`/opt/tinyhpc`) da stack gerenciada (`/opt/hpc`). Receitas são TOML hierárquicos em `packages/`; o caminho define identidade e herança (por exemplo, `gcc/9.5.0/openmpi/5.0.8`). Veja [docs/configuration.md](docs/configuration.md) e [docs/recipes.md](docs/recipes.md).
 
-Receitas completas ou funcionais:
+## Receitas disponíveis
 
 - GMP 6.1.0;
-- MPFR 4.1.0 (`gmp/6.1.0`);
-- MPC 1.2.1 (`gmp/6.1.0`, `mpfr/4.1.0`);
-- GCC 9.5.0 (`gmp/6.1.0`, `mpfr/4.1.0`, `mpc/1.2.1`);
-- OpenMPI 5.0.8 + GCC 9.5.0;
-- OpenBLAS 0.3.30 + GCC 9.5.0 (`DYNAMIC_ARCH=1`, BLAS/LAPACK testados).
-
-GCC é configurado com os prefixos fornecidos pelos modulefiles das três dependências e com ISL desabilitado nesta etapa. Isso evita dependências silenciosas em pacotes `*-devel` da distribuição e mantém download, versão e checksum sob controle do TinyHPC.
-
-Stack alvo validada manualmente:
-
+- MPFR 4.1.0;
+- MPC 1.2.1;
 - GCC 9.5.0;
-- OpenMPI 5.0.8;
-- OpenBLAS 0.3.30;
-- FFTW 3.3.10;
-- ScaLAPACK 2.2.0;
-- OpenMX 4.0 + patch 4.0.1.
+- OpenBLAS 0.3.30 (GCC 9.5.0);
+- FFTW 3.3.10 (GCC 9.5.0);
+- Open MPI 5.0.8 (GCC 9.5.0);
+- ScaLAPACK 2.2.0 (Open MPI 5.0.8 + OpenBLAS 0.3.30);
+- Quantum ESPRESSO 7.6 (stack completa).
 
-O objetivo incremental é chegar a:
-
-```fish
-hpc install openmx/4.0
-```
-
-com resolução automática de toda a stack.
-
-## Filosofia
-
-O Git guarda apenas o que torna a instalação reproduzível: receitas, versões, URLs, checksums, patches, modulefiles e testes. Fontes extraídas e builds podem ser descartados; o cache de downloads pode ser preservado.
-
-## OpenMX 4.0 + patch 4.0.1
-
-OpenMX is exposed as the stable recipe spec `openmx/4.0`; the installed module
-is `openmx/4.0.1-gcc9`, reflecting the official patch level.
-
-The OpenMX project does not publish SHA-256 values alongside the source and
-patch links. Lock the exact official downloads once on a connected machine:
-
-```fish
-./tools/lock-checksum.fish openmx/4.0 --write
-./bootstrap.fish
-source ~/.config/fish/conf.d/tinyhpc.fish
-hpc install openmx/4.0
-```
-
-Once the resulting `package.conf` is committed, subsequent installations use
-the normal TinyHPC checksum-verification path without this bootstrap step.
+Este é um projeto inicial (v0.1.0) em desenvolvimento ativo.

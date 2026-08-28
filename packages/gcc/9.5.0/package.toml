@@ -1,0 +1,56 @@
+schema = 1
+
+[package]
+name = "gcc"
+version = "9.5.0"
+description = "GNU Compiler Collection 9.5.0"
+dependencies = ["gmp/6.1.0", "mpfr/4.1.0", "mpc/1.2.1"]
+
+[source]
+url = "https://ftp.gnu.org/gnu/gcc/gcc-9.5.0/gcc-9.5.0.tar.xz"
+sha256 = "27769f64ef1d4cd5e2be8682c0c93f9887983e6cfd1a927ce5a0a2915a95cf8f"
+directory = "gcc-9.5.0"
+
+[build]
+system = "autotools"
+# Skip the three-stage bootstrap for speed and drop multilib/libsanitizer/ISL
+# to keep the toolchain self-contained on the build host.
+arguments = [
+  "--enable-languages=c,c++,fortran",
+  "--disable-multilib",
+  "--disable-bootstrap",
+  "--disable-libsanitizer",
+  "--with-gmp=${GMP_ROOT}",
+  "--with-mpfr=${MPFR_ROOT}",
+  "--with-mpc=${MPC_ROOT}",
+  "--without-isl",
+]
+
+[build.environment]
+# Keep the host GCC from loading this toolchain's older MPFR into cc1.
+LD_LIBRARY_PATH = "${TINYHPC_HOST_LD_LIBRARY_PATH}"
+# Embed rpaths so cc1/cc1plus resolve GMP/MPFR/MPC without LD_LIBRARY_PATH.
+LDFLAGS = "-Wl,-rpath,${MPC_ROOT}/lib -Wl,-rpath,${MPFR_ROOT}/lib -Wl,-rpath,${GMP_ROOT}/lib"
+
+[module]
+family = "compiler"
+root_environment = ["GCC_ROOT"]
+
+[module.paths]
+PATH = ["bin"]
+LIBRARY_PATH = ["lib64", "lib"]
+CPATH = ["include"]
+MANPATH = ["share/man"]
+
+[module.environment]
+CC = "{root}/bin/gcc"
+CXX = "{root}/bin/g++"
+FC = "{root}/bin/gfortran"
+
+[[tests]]
+type = "executable"
+path = "bin/gcc"
+
+[[tests]]
+type = "executable"
+path = "bin/gfortran"

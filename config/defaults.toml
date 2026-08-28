@@ -1,0 +1,10 @@
+# Built-in defaults, overridden by the user config referenced via TINYHPC_CONFIG.
+schema = 1
+
+[paths]
+home = "/opt/tinyhpc"
+root = "/opt/hpc"
+
+[build]
+jobs = 4
+profile = "native"

@@ -1,0 +1,52 @@
+schema = 1
+
+[package]
+name = "fftw"
+version = "3.3.10"
+description = "FFTW 3.3.10 built with GCC 9.5.0"
+dependencies = []
+
+[source]
+url = "https://fftw.org/pub/fftw/fftw-3.3.10.tar.gz"
+sha256 = "56c932549852cddcfafdab3820b0200c7742675be92179e59e6215b340e26467"
+directory = "fftw-3.3.10"
+
+[build]
+system = "autotools"
+arguments = [
+  "--enable-shared",
+  "--disable-static",
+  "--enable-threads",
+  "--enable-openmp",
+  "CC=${CC}",
+  "F77=${FC}",
+  "FC=${FC}",
+  # Embed rpaths to the compiler runtime so the shared libraries resolve.
+  "LDFLAGS=-Wl,-rpath,${GCC_ROOT}/lib64 -Wl,-rpath,${GCC_ROOT}/lib",
+]
+
+[module]
+root_environment = ["FFTW_ROOT"]
+
+[module.paths]
+PATH = ["bin"]
+LD_LIBRARY_PATH = ["lib"]
+LIBRARY_PATH = ["lib"]
+CPATH = ["include"]
+PKG_CONFIG_PATH = ["lib/pkgconfig"]
+
+[[tests]]
+type = "file"
+path = "lib/libfftw3.so"
+
+[[tests]]
+type = "file"
+path = "lib/libfftw3_omp.so"
+
+[[tests]]
+type = "file"
+path = "include/fftw3.h"
+
+[[tests]]
+type = "script"
+path = "smoke-test.sh"

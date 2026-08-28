@@ -1,0 +1,198 @@
+from pathlib import Path
+import os
+import subprocess
+import tempfile
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+CLI = ROOT / "bin" / "hpc"
+QE_SPEC = "gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6"
+CONFIG_ENVIRONMENT = (
+    "TINYHPC_CONFIG",
+    "TINYHPC_HOME",
+    "TINYHPC_ROOT",
+    "HPC_JOBS",
+    "HPC_PROFILE",
+    "HPC_ROOT",
+    "HPC_CACHE",
+    "HPC_SRC",
+    "HPC_BUILD",
+    "HPC_SOFTWARE",
+    "HPC_MODULEFILES",
+    "HPC_LOGS",
+)
+
+
+class BashCliTests(unittest.TestCase):
+    def run_cli(self, *arguments: str, environment=None) -> str:
+        configured_environment = dict(os.environ)
+        for variable in CONFIG_ENVIRONMENT:
+            configured_environment.pop(variable, None)
+        configured_environment["XDG_CONFIG_HOME"] = str(ROOT / "tests/.config-empty")
+        configured_environment["PYTHONDONTWRITEBYTECODE"] = "1"
+        if environment:
+            configured_environment.update(environment)
+        result = subprocess.run(
+            ["bash", str(CLI), *arguments],
+            cwd=ROOT,
+            env=configured_environment,
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        return result.stdout
+
+    def test_quantum_espresso_plan_through_bash(self):
+        plan = self.run_cli("plan", QE_SPEC).splitlines()
+        self.assertEqual(plan[-1], QE_SPEC)
+        self.assertIn("gcc/9.5.0/openmpi/5.0.8", plan)
+
+    def test_user_configuration_through_bash(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            config = Path(temporary) / "config.toml"
+            config.write_text(
+                '''schema = 1
+[paths]
+root = "/cluster/tinyhpc"
+[build]
+jobs = 24
+'''
+            )
+            output = self.run_cli("config", environment={"TINYHPC_CONFIG": str(config)})
+            self.assertIn("TINYHPC_ROOT=/cluster/tinyhpc", output)
+            self.assertIn("HPC_JOBS=24", output)
+            self.assertIn("HPC_LOGS=/cluster/tinyhpc/logs", output)
+
+    def test_fish_exists_only_as_user_interface(self):
+        fish_files = [path.relative_to(ROOT).as_posix() for path in ROOT.glob("**/*.fish")]
+        self.assertEqual(fish_files, ["shell/init.fish"])
+        self.assertTrue((ROOT / "bin/hpc").read_text().startswith("#!/usr/bin/env bash"))
+
+    def test_environment_can_be_rendered_for_all_shells(self):
+        bash_environment = self.run_cli("env", "--shell", "bash")
+        zsh_environment = self.run_cli("env", "--shell", "zsh")
+        fish_environment = self.run_cli("env", "--shell", "fish")
+        self.assertIn("export TINYHPC_ROOT=", bash_environment)
+        self.assertIn("export TINYHPC_ROOT=", zsh_environment)
+        self.assertIn("set -gx TINYHPC_ROOT ", fish_environment)
+
+    def test_cli_resolves_repository_through_symlink(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            link = Path(temporary) / "hpc"
+            link.symlink_to(CLI)
+            result = subprocess.run(
+                [str(link), "plan", QE_SPEC],
+                cwd=ROOT,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(result.stdout.splitlines()[-1], QE_SPEC)
+
+    def test_doctor_initializes_lmod_inside_cli(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary_path = Path(temporary)
+            root = temporary_path / "root"
+            for name in ("cache", "src", "build", "software", "modulefiles", "logs"):
+                (root / name).mkdir(parents=True, exist_ok=True)
+
+            config = temporary_path / "config.toml"
+            config.write_text(
+                "schema = 1\n"
+                "[paths]\n"
+                f'root = "{root}"\n'
+                "[build]\n"
+                "jobs = 4\n"
+            )
+            lmod_init = temporary_path / "lmod-init.bash"
+            lmod_init.write_text("module() { return 0; }\n")
+
+            output = self.run_cli(
+                "doctor",
+                environment={
+                    "TINYHPC_CONFIG": str(config),
+                    "TINYHPC_LMOD_INIT": str(lmod_init),
+                },
+            )
+            self.assertIn("module       OK", output)
+
+    def test_bash_interface_is_sourceable(self):
+        result = subprocess.run(
+            [
+                "bash",
+                "-c",
+                'unset TINYHPC_CONFIG TINYHPC_ROOT; source shell/init.bash 2>/dev/null; printf "%s" "$TINYHPC_ROOT"',
+            ],
+            cwd=ROOT,
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(result.stdout, "/opt/hpc")
+
+    def test_bootstrap_supports_unprivileged_clean_install(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary_path = Path(temporary) / "installation with spaces"
+            home = temporary_path / "home"
+            home.mkdir(parents=True)
+            manager = temporary_path / "opt/tinyhpc"
+            stack = temporary_path / "opt/hpc"
+            cli = temporary_path / "bin/hpc"
+            bash_environment = temporary_path / "bash-env"
+            bash_environment.write_text(
+                'module() { [[ "${1:-}" == "--version" ]] && printf "mock Lmod\\n"; return 0; }\n'
+            )
+            environment = {
+                key: value
+                for key, value in os.environ.items()
+                if key not in CONFIG_ENVIRONMENT
+            }
+            environment.update(
+                {
+                    "BASH_ENV": str(bash_environment),
+                    "HOME": str(home),
+                    "USER": os.environ.get("USER", "nobody"),
+                    "XDG_CONFIG_HOME": str(home / ".config"),
+                    "TINYHPC_HOME": str(manager),
+                    "TINYHPC_ROOT": str(stack),
+                    "TINYHPC_BIN": str(cli),
+                    "TINYHPC_SUDO": "",
+                    "PYTHONDONTWRITEBYTECODE": "1",
+                }
+            )
+
+            subprocess.run(
+                ["bash", str(ROOT / "bootstrap.sh")],
+                cwd=ROOT,
+                env=environment,
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertTrue(cli.is_symlink())
+            self.assertTrue((stack / "modulefiles").is_dir())
+            config = home / ".config/tinyhpc/config.toml"
+            self.assertTrue(config.is_file())
+            output = subprocess.run(
+                [str(cli), "config"],
+                env={**environment, "TINYHPC_CONFIG": str(config)},
+                check=True,
+                text=True,
+                capture_output=True,
+            ).stdout
+            self.assertIn(f"TINYHPC_ROOT={stack}", output)
+            packages = subprocess.run(
+                [str(cli), "list"],
+                env={**environment, "TINYHPC_CONFIG": str(config)},
+                check=True,
+                text=True,
+                capture_output=True,
+            ).stdout
+            self.assertIn("gcc/9.5.0", packages)
+
+
+if __name__ == "__main__":
+    unittest.main()
