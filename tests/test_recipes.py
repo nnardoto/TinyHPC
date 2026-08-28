@@ -13,6 +13,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPOSITORY_ROOT / "lib"))
 
 from recipe import RecipeError, Repository, Runtime, apply_configuration  # noqa: E402
+from resolver import write_compiler  # noqa: E402
 
 
 QE_SPEC = "gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6"
@@ -291,6 +292,22 @@ class ValidationTests(unittest.TestCase):
                 self.assertTrue(runtime.installed(recipe))
                 recipe.path.write_text(recipe.path.read_text() + "\n# changed\n")
                 self.assertFalse(runtime.installed(recipe))
+
+    def test_compiler_context_does_not_change_fingerprint(self):
+        repository = Repository(REPOSITORY_ROOT)
+        runtime = Runtime(repository)
+        recipe = repository.get(GCC16_QE_SPEC)
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(
+            os.environ, {"XDG_CONFIG_HOME": temporary}
+        ):
+            original = runtime.recipe_fingerprint(recipe)
+            write_compiler("gcc/9.5.0")
+            with_gcc9 = runtime.recipe_fingerprint(recipe)
+            write_compiler(GCC16_SPEC)
+            with_gcc16 = runtime.recipe_fingerprint(recipe)
+
+        self.assertEqual(original, with_gcc9)
+        self.assertEqual(original, with_gcc16)
 
     def test_failed_upgrade_restores_previous_installation(self):
         with tempfile.TemporaryDirectory() as temporary:

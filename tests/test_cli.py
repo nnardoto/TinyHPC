@@ -28,7 +28,7 @@ CONFIG_ENVIRONMENT = (
 
 
 class BashCliTests(unittest.TestCase):
-    def run_cli(self, *arguments: str, environment=None) -> str:
+    def run_cli_process(self, *arguments: str, environment=None) -> subprocess.CompletedProcess:
         configured_environment = dict(os.environ)
         for variable in CONFIG_ENVIRONMENT:
             configured_environment.pop(variable, None)
@@ -41,11 +41,16 @@ class BashCliTests(unittest.TestCase):
             cwd=ROOT,
             env=configured_environment,
             stdin=subprocess.DEVNULL,
-            check=True,
+            check=False,
             text=True,
             capture_output=True,
             timeout=30,
         )
+        return result
+
+    def run_cli(self, *arguments: str, environment=None) -> str:
+        result = self.run_cli_process(*arguments, environment=environment)
+        result.check_returncode()
         return result.stdout
 
     def test_quantum_espresso_plan_through_bash(self):
@@ -68,6 +73,102 @@ jobs = 24
             self.assertIn("TINYHPC_ROOT=/cluster/tinyhpc", output)
             self.assertIn("HPC_JOBS=24", output)
             self.assertIn("HPC_LOGS=/cluster/tinyhpc/logs", output)
+
+    def test_compilers_lists_available_compilers_without_selection(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = self.run_cli(
+                "compilers", environment={"XDG_CONFIG_HOME": temporary}
+            )
+        self.assertIn("  gcc/9.5.0", output)
+        self.assertIn("  gcc/16.2.0", output)
+        self.assertNotIn("* ", output)
+
+    def test_compiler_set_show_and_resolve_use_persisted_context(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            environment = {"XDG_CONFIG_HOME": temporary}
+            selected = self.run_cli("compiler", "gcc/16.2.0", environment=environment)
+            current = self.run_cli("compiler", environment=environment)
+            compilers = self.run_cli("compilers", environment=environment)
+            resolved = self.run_cli(
+                "resolve", "quantum-espresso/7.6", environment=environment
+            )
+            verbose = self.run_cli(
+                "resolve", "-v", "quantum-espresso/7.6", environment=environment
+            )
+
+        self.assertEqual(selected.strip(), "gcc/16.2.0")
+        self.assertEqual(current.strip(), "gcc/16.2.0")
+        self.assertIn("* gcc/16.2.0", compilers)
+        self.assertEqual(resolved.strip(), "gcc/16.2.0/openmpi/5.0.8/quantum-espresso/7.6")
+        self.assertIn("query:    quantum-espresso/7.6", verbose)
+        self.assertIn("compiler: gcc/16.2.0", verbose)
+        self.assertIn("resolved: gcc/16.2.0/openmpi/5.0.8/quantum-espresso/7.6", verbose)
+
+    def test_compiler_clear_removes_context(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            environment = {"XDG_CONFIG_HOME": temporary}
+            self.run_cli("compiler", "gcc/16.2.0", environment=environment)
+            self.run_cli("compiler", "--clear", environment=environment)
+            current = self.run_cli("compiler", environment=environment)
+            compilers = self.run_cli("compilers", environment=environment)
+
+        self.assertEqual(current, "")
+        self.assertNotIn("* ", compilers)
+
+    def test_compiler_name_with_multiple_versions_is_ambiguous(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            result = self.run_cli_process(
+                "compiler", "gcc", environment={"XDG_CONFIG_HOME": temporary}
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("compilador ambíguo: 'gcc'", result.stderr)
+        self.assertIn("gcc/9.5.0", result.stderr)
+        self.assertIn("gcc/16.2.0", result.stderr)
+
+    def test_unknown_short_spec_fails_without_fuzzy_matching(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            result = self.run_cli_process(
+                "resolve", "quantum", environment={"XDG_CONFIG_HOME": temporary}
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("spec não encontrada: quantum", result.stderr)
+
+    def test_short_spec_is_ambiguous_without_compiler_context(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            result = self.run_cli_process(
+                "resolve",
+                "quantum-espresso/7.6",
+                environment={"XDG_CONFIG_HOME": temporary},
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("spec ambígua: 'quantum-espresso/7.6'", result.stderr)
+        self.assertIn("gcc/9.5.0/openmpi/5.0.8/quantum-espresso/7.6", result.stderr)
+        self.assertIn("gcc/16.2.0/openmpi/5.0.8/quantum-espresso/7.6", result.stderr)
+
+    def test_compiler_and_install_reject_extra_arguments(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            environment = {"XDG_CONFIG_HOME": temporary}
+            compiler = self.run_cli_process(
+                "compiler", "gcc/16.2.0", "extra", environment=environment
+            )
+            install = self.run_cli_process(
+                "install", QE_SPEC, "extra", environment=environment
+            )
+        self.assertNotEqual(compiler.returncode, 0)
+        self.assertIn("uso: hpc compiler", compiler.stderr)
+        self.assertNotEqual(install.returncode, 0)
+        self.assertIn("uso: hpc install", install.stderr)
+
+    def test_stale_compiler_context_fails_before_short_resolution(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            state = Path(temporary) / "tinyhpc/compiler"
+            state.parent.mkdir(parents=True)
+            state.write_text("gcc/99.0\n")
+            result = self.run_cli_process(
+                "resolve", "isl", environment={"XDG_CONFIG_HOME": temporary}
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("contexto de compilador indisponível: gcc/99.0", result.stderr)
 
     def test_fish_exists_only_as_user_interface(self):
         fish_files = [path.relative_to(ROOT).as_posix() for path in ROOT.glob("**/*.fish")]
@@ -131,6 +232,7 @@ jobs = 24
                 (root / name).mkdir(parents=True, exist_ok=True)
 
             calls = temporary_path / "calls"
+            plan_calls = temporary_path / "plan-calls"
             fake_bin = temporary_path / "bin"
             fake_bin.mkdir()
             fake_python = fake_bin / "python3.13"
@@ -139,7 +241,7 @@ jobs = 24
 if [[ "${{1:-}}" == "-c" ]]; then exit 0; fi
 for argument in "$@"; do
   case "$argument" in
-    environment|plan|installed|dependencies|install-one) command="$argument"; break ;;
+    environment|resolve|plan|installed|dependencies|install-one) command="$argument"; break ;;
   esac
 done
 case "${{command:-}}" in
@@ -148,7 +250,11 @@ case "${{command:-}}" in
       HPC_ROOT {root} HPC_CACHE {root}/cache HPC_SRC {root}/src HPC_BUILD {root}/build \
       HPC_SOFTWARE {root}/software HPC_MODULEFILES {root}/modulefiles HPC_LOGS {root}/logs
     ;;
-  plan) printf 'dependency/1\ntarget/1\n' ;;
+  resolve) printf 'target/1\n' ;;
+  plan)
+    printf '%s\n' "${{@: -1}}" >> {plan_calls}
+    printf 'dependency/1\ntarget/1\n'
+    ;;
   installed) exit 1 ;;
   dependencies) : ;;
   install-one)
@@ -164,7 +270,7 @@ esac
 
             self.run_cli(
                 "install",
-                "target/1",
+                "short",
                 environment={
                     "BASH_ENV": str(bash_environment),
                     "PATH": f"{fake_bin}:{os.environ['PATH']}",
@@ -172,6 +278,7 @@ esac
             )
 
             self.assertEqual(calls.read_text().splitlines(), ["dependency/1", "target/1"])
+            self.assertEqual(plan_calls.read_text().splitlines(), ["target/1"])
 
     def test_bash_interface_is_sourceable(self):
         result = subprocess.run(

@@ -37,6 +37,31 @@ command -v pw.x
 
 `hpc list` mostra as receitas disponíveis, `hpc info` exibe metadados e dependências, `hpc plan` imprime a ordem de build (GMP, MPFR, MPC, GCC, Open MPI, OpenBLAS, FFTW, ScaLAPACK e Quantum ESPRESSO) e `hpc install` resolve as dependências, reutilizando o que já está instalado.
 
+### Specs curtas e contexto de compilador
+
+`hpc install` aceita uma spec curta somente quando ela corresponde a exatamente
+uma spec canônica. O comando `resolve` permite verificar a resolução sem
+instalar:
+
+```bash
+hpc compilers
+hpc compiler gcc/16.2.0
+hpc resolve quantum-espresso/7.6
+hpc install quantum-espresso/7.6
+hpc compiler --clear
+```
+
+O contexto selecionado persiste entre invocações e restringe a busca à árvore
+do compilador. Uma spec canônica completa continua funcionando diretamente.
+
+**Short specs are accepted only when they resolve to exactly one canonical spec.**
+
+**Compiler context narrows resolution; it never resolves ambiguity.**
+
+O TinyHPC nunca escolhe automaticamente a maior versão, o primeiro resultado,
+um MPI ou outro componente. Zero correspondências falham como não encontrado;
+mais de uma falha como ambígua e exige uma spec mais longa.
+
 ## Shells
 
 Bash, Zsh e Fish têm interfaces sourceáveis criadas pelo bootstrap:

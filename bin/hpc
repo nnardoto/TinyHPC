@@ -135,6 +135,22 @@ case "${1:-}" in
     list)
         recipe list
         ;;
+    compilers)
+        [[ $# -eq 1 ]] || hpc_die "uso: hpc compilers"
+        recipe compilers
+        ;;
+    compiler)
+        [[ $# -le 2 ]] || hpc_die "uso: hpc compiler [<compiler-spec>|--clear]"
+        case "${2:-}" in
+            "") recipe compiler-current ;;
+            --clear) recipe compiler-clear ;;
+            *) recipe compiler-set "$2" ;;
+        esac
+        ;;
+    resolve)
+        [[ $# -ge 2 ]] || hpc_die "uso: hpc resolve [-v] <query>"
+        recipe resolve "${@:2}"
+        ;;
     info)
         [[ $# -ge 2 ]] || hpc_die "uso: hpc info <spec>"
         recipe info "$2"
@@ -165,9 +181,10 @@ case "${1:-}" in
         recipe lock "$2"
         ;;
     install)
+        [[ $# -eq 2 ]] || hpc_die "uso: hpc install <spec>"
+        resolved_spec="$(recipe resolve "$2")" || exit 1
         hpc_require_layout
-        [[ $# -ge 2 ]] || hpc_die "uso: hpc install <spec>"
-        hpc_install_spec "$2"
+        hpc_install_spec "$resolved_spec"
         ;;
     clean)
         [[ $# -ge 2 ]] || hpc_die "uso: hpc clean <spec>"
@@ -197,7 +214,7 @@ case "${1:-}" in
         fi
         ;;
     *)
-        echo "hpc {list|info|config|env|plan|validate|new|lock|install|clean|remove|doctor} [spec]"
+        echo "hpc {list|compilers|compiler|resolve|info|config|env|plan|validate|new|lock|install|clean|remove|doctor} [spec]"
         exit 1
         ;;
 esac

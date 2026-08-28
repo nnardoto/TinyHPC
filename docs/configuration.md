@@ -89,6 +89,39 @@ para exibir a origem da configuração e os valores efetivos. Um override tempor
 HPC_JOBS=16 hpc install gcc/9.5.0/openmpi/5.0.8
 ```
 
+## Contexto de compilador
+
+O contexto de compilador é uma preferência da CLI, separada do `config.toml`.
+Ele é armazenado como uma única spec canônica em
+`${XDG_CONFIG_HOME:-$HOME/.config}/tinyhpc/compiler` e não participa de
+fingerprints, instalações ou modulefiles.
+
+```bash
+hpc compilers                 # lista os compiladores e marca o selecionado
+hpc compiler                  # mostra o contexto atual
+hpc compiler gcc/16.2.0       # resolve e seleciona um compilador
+hpc compiler --clear          # remove o contexto
+hpc resolve quantum-espresso/7.6
+```
+
+Com contexto selecionado, queries não canônicas são procuradas somente dentro
+da árvore daquele compilador, sem fallback global. Uma spec canônica completa
+e existente é sempre aceita diretamente. A regra de resolução é estrita:
+
+```text
+0 correspondências  -> não encontrado
+1 correspondência   -> spec canônica
+mais de 1            -> ambígua
+```
+
+**Short specs are accepted only when they resolve to exactly one canonical spec.**
+
+**Compiler context narrows resolution; it never resolves ambiguity.**
+
+Não há seleção automática por versão, provider, MPI ou ordem dos resultados.
+O matching usa componentes exatos do sufixo da spec; `quantum` não corresponde
+silenciosamente a `quantum-espresso`.
+
 Após editar o TOML em um shell que já carregou o TinyHPC, recarregue o ambiente:
 
 ```bash

@@ -16,6 +16,14 @@ import sys
 import tarfile
 import urllib.request
 
+from resolver import (
+    ResolutionError,
+    Resolver,
+    clear_compiler,
+    read_compiler,
+    write_compiler,
+)
+
 try:
     import tomllib
 except ModuleNotFoundError:  # Python 3.10 and older
@@ -910,6 +918,14 @@ def parser() -> argparse.ArgumentParser:
     validate = subcommands.add_parser("validate")
     validate.add_argument("spec", nargs="?")
     subcommands.add_parser("list")
+    subcommands.add_parser("compilers")
+    subcommands.add_parser("compiler-current")
+    compiler_set = subcommands.add_parser("compiler-set")
+    compiler_set.add_argument("spec")
+    subcommands.add_parser("compiler-clear")
+    resolve = subcommands.add_parser("resolve")
+    resolve.add_argument("spec")
+    resolve.add_argument("-v", "--verbose", action="store_true")
     subcommands.add_parser("config")
     environment = subcommands.add_parser("environment")
     environment.add_argument("--shell", choices=("tsv", "bash", "zsh", "fish"), default="tsv")
@@ -925,6 +941,7 @@ def main() -> int:
     arguments = parser().parse_args()
     user_configuration = apply_configuration(arguments.repo.resolve())
     repository = Repository(arguments.repo)
+    resolver = Resolver(repository)
     runtime = Runtime(repository)
     command = arguments.command
 
@@ -936,6 +953,29 @@ def main() -> int:
             print(f"{key}={os.environ[key]}")
     elif command == "list":
         print("\n".join(sorted(repository.recipes)))
+    elif command == "compilers":
+        current = resolver.validate_compiler_context(read_compiler())
+        for compiler in resolver.list_compilers():
+            print(("* " if compiler == current else "  ") + compiler)
+    elif command == "compiler-current":
+        current = resolver.validate_compiler_context(read_compiler())
+        if current:
+            print(current)
+    elif command == "compiler-set":
+        compiler = resolver.resolve_compiler(arguments.spec)
+        write_compiler(compiler)
+        print(compiler)
+    elif command == "compiler-clear":
+        clear_compiler()
+    elif command == "resolve":
+        current = read_compiler()
+        resolved = resolver.resolve(arguments.spec, compiler_context=current)
+        if arguments.verbose:
+            print(f"query:    {arguments.spec}")
+            print(f"compiler: {current or ''}")
+            print(f"resolved: {resolved}")
+        else:
+            print(resolved)
     elif command == "new":
         command_new(repository, arguments.spec, arguments.build_system)
     elif command == "validate":
@@ -986,7 +1026,7 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except RecipeError as exc:
+    except (RecipeError, ResolutionError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         raise SystemExit(1)
     except subprocess.CalledProcessError as exc:
