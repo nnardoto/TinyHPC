@@ -529,7 +529,7 @@ class Runtime:
         if script:
             files.append(recipe.directory / str(script))
         for test in recipe.tests:
-            if isinstance(test, dict) and test.get("type") == "script":
+            if isinstance(test, dict) and test.get("type") in {"script", "target-script"}:
                 files.append(recipe.directory / str(test.get("path", "test.sh")))
         files.extend(sorted((recipe.directory / "patches").glob("*.patch")))
 
@@ -729,7 +729,7 @@ class Runtime:
             script = recipe.directory / str(recipe.build["script"])
             self.run(["bash", str(script)], cwd=recipe.directory, environment=environment)
 
-    def test(self, recipe: Recipe) -> None:
+    def test(self, recipe: Recipe, include_target: bool = False) -> None:
         environment = self.environment(recipe)
         prefix = self.prefix(recipe)
         for index, test in enumerate(recipe.tests, start=1):
@@ -749,6 +749,12 @@ class Runtime:
             elif kind == "script":
                 script = recipe.directory / str(test.get("path", "test.sh"))
                 self.run(["bash", str(script)], cwd=recipe.directory, environment=environment)
+            elif kind == "target-script":
+                script = recipe.directory / str(test.get("path", "test.sh"))
+                if include_target:
+                    self.run(["bash", str(script)], cwd=recipe.directory, environment=environment)
+                else:
+                    note(f"teste de destino adiado: {script}")
             else:
                 die(f"{recipe.spec}: tipo de teste inválido: {kind!r}")
 
@@ -1000,7 +1006,7 @@ def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(prog="hpc-recipe")
     result.add_argument("--repo", type=Path, required=True)
     subcommands = result.add_subparsers(dest="command", required=True)
-    for name in ("info", "plan", "dependencies", "installed", "sync-module", "install-one", "clean", "remove", "lock"):
+    for name in ("info", "plan", "dependencies", "installed", "sync-module", "install-one", "test", "clean", "remove", "lock"):
         command = subcommands.add_parser(name)
         command.add_argument("spec")
     validate = subcommands.add_parser("validate")
@@ -1110,6 +1116,8 @@ def main() -> int:
             print(runtime.render_modulefile(recipe), end="")
         elif command == "install-one":
             runtime.install_one(recipe)
+        elif command == "test":
+            runtime.test(recipe, include_target=True)
         elif command == "clean":
             runtime.clean(recipe)
         elif command == "remove":

@@ -1,0 +1,63 @@
+schema = 1
+
+[package]
+name = "fftw-zen5"
+version = "3.3.10"
+description = "FFTW 3.3.10 with AVX-512 targeting AMD EPYC Zen 5"
+dependencies = []
+
+[source]
+url = "https://fftw.org/pub/fftw/fftw-3.3.10.tar.gz"
+sha256 = "56c932549852cddcfafdab3820b0200c7742675be92179e59e6215b340e26467"
+directory = "fftw-3.3.10"
+
+[build]
+system = "autotools"
+arguments = [
+  # Different build/host vendors put Autoconf in cross mode. This prevents
+  # configure from executing Zen 5 probes on the Zen 3 build host.
+  "--build=x86_64-pc-linux-gnu",
+  "--host=x86_64-redhat-linux-gnu",
+  "--enable-shared",
+  "--disable-static",
+  "--enable-threads",
+  "--enable-openmp",
+  "--enable-sse2",
+  "--enable-avx",
+  "--enable-avx2",
+  "--enable-fma",
+  "--enable-avx512",
+  "CC=${CC}",
+  "F77=${FC}",
+  "FC=${FC}",
+  "CFLAGS=-O3 -march=znver5 -mtune=znver5 -flto=auto",
+  "FFLAGS=-O3 -march=znver5 -mtune=znver5 -flto=auto",
+  "FCFLAGS=-O3 -march=znver5 -mtune=znver5 -flto=auto",
+  "LDFLAGS=-flto=auto -Wl,-rpath,${GCC_ROOT}/lib64 -Wl,-rpath,${GCC_ROOT}/lib",
+]
+
+[module]
+root_environment = ["FFTW_ROOT"]
+
+[module.paths]
+PATH = ["bin"]
+LD_LIBRARY_PATH = ["lib"]
+LIBRARY_PATH = ["lib"]
+CPATH = ["include"]
+PKG_CONFIG_PATH = ["lib/pkgconfig"]
+
+[[tests]]
+type = "file"
+path = "lib/libfftw3.so"
+
+[[tests]]
+type = "file"
+path = "lib/libfftw3_omp.so"
+
+[[tests]]
+type = "file"
+path = "include/fftw3.h"
+
+[[tests]]
+type = "target-script"
+path = "smoke-test.sh"

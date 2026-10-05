@@ -68,6 +68,7 @@ class BashCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("Uso: hpc <comando> [opções]", result.stdout)
         self.assertIn("installed", result.stdout)
+        self.assertIn("test <spec>", result.stdout)
         self.assertEqual(result.stderr, "")
 
     def test_installed_lists_only_valid_installations(self):

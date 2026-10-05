@@ -119,6 +119,22 @@ type = "script"
 path = "test.sh"
 ```
 
+Para binários destinados a uma CPU diferente da máquina de compilação, use
+`target-script`. Esse teste fica registrado no fingerprint da receita, mas é
+adiado durante `hpc install` para não executar instruções incompatíveis no host:
+
+```toml
+[[tests]]
+type = "target-script"
+path = "smoke-test.sh"
+```
+
+Execute-o posteriormente no nó de destino:
+
+```bash
+hpc test <spec>
+```
+
 ## Fluxo para um pacote novo
 
 ```bash

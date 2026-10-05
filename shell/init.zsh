@@ -14,7 +14,7 @@ eval "$("$_tinyhpc_home/bin/hpc" env --shell zsh)"
 _tinyhpc_complete() {
     local command
     local -a commands values
-    commands=(-h --help list installed info compilers compiler resolve config env plan validate new lock install clean remove doctor help)
+    commands=(-h --help list installed info compilers compiler resolve config env plan validate new lock install test clean remove doctor help)
     if (( CURRENT == 2 )); then
         _describe 'comando' commands
         return
@@ -31,7 +31,7 @@ _tinyhpc_complete() {
             values=("${(@f)$(hpc installed --flat 2>/dev/null)}")
             _describe 'spec instalada' values
             ;;
-        info|resolve|plan|validate|lock|install|clean)
+        info|resolve|plan|validate|lock|install|test|clean)
             values=("${(@f)$(hpc list --flat 2>/dev/null)}")
             _describe 'spec' values
             ;;

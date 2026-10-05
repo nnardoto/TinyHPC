@@ -40,6 +40,7 @@ Gerenciamento:
   new <spec> [--build-system]  Cria uma receita
   lock <spec>                  Atualiza o checksum da fonte
   install <spec>               Instala uma spec e suas dependências
+  test <spec>                  Executa os testes, inclusive os do nó de destino
   clean <spec>                 Remove fontes e artefatos de build
   remove <spec>                Remove uma instalação
   doctor                       Verifica o ambiente e as dependências
@@ -169,6 +170,22 @@ hpc_install_spec() {
     done
 }
 
+hpc_test_spec() {
+    local spec="$1" dependencies dependency
+    local -a dependency_items
+
+    hpc_require_lmod
+    module purge || return 1
+    module use "$HPC_MODULEFILES" || return 1
+    dependencies="$(recipe dependencies "$spec")" || return 1
+    mapfile -t dependency_items <<< "$dependencies"
+    for dependency in "${dependency_items[@]}"; do
+        [[ -n "$dependency" ]] || continue
+        module load "$dependency" || hpc_die "não foi possível carregar módulo de $dependency"
+    done
+    recipe test "$spec"
+}
+
 case "${1:-}" in
     list)
         recipe list "${@:2}"
@@ -226,6 +243,12 @@ case "${1:-}" in
         resolved_spec="$(recipe resolve "$2")" || exit 1
         hpc_require_layout
         hpc_install_spec "$resolved_spec"
+        ;;
+    test)
+        [[ $# -eq 2 ]] || hpc_die "uso: hpc test <spec>"
+        resolved_spec="$(recipe resolve "$2")" || exit 1
+        hpc_require_layout
+        hpc_test_spec "$resolved_spec"
         ;;
     clean)
         [[ $# -ge 2 ]] || hpc_die "uso: hpc clean <spec>"

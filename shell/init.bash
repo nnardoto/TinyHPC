@@ -12,7 +12,7 @@ eval "$("$_tinyhpc_home/bin/hpc" env --shell bash)"
 
 _tinyhpc_complete() {
     local current command output
-    local commands="-h --help list installed info compilers compiler resolve config env plan validate new lock install clean remove doctor help"
+    local commands="-h --help list installed info compilers compiler resolve config env plan validate new lock install test clean remove doctor help"
     current="${COMP_WORDS[COMP_CWORD]}"
 
     if (( COMP_CWORD == 1 )); then
@@ -36,7 +36,7 @@ _tinyhpc_complete() {
         installed)
             COMPREPLY=($(compgen -W "$(command hpc installed --flat 2>/dev/null) --flat --module" -- "$current"))
             ;;
-        info|resolve|plan|validate|lock|install|clean)
+        info|resolve|plan|validate|lock|install|test|clean)
             COMPREPLY=($(compgen -W "$(command hpc list --flat 2>/dev/null)" -- "$current"))
             ;;
         env)

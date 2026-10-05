@@ -1,0 +1,57 @@
+schema = 1
+
+[package]
+name = "openblas-zen5"
+version = "0.3.30"
+description = "OpenBLAS 0.3.30 targeting AMD EPYC Zen 5, built on a compatible x86-64 host"
+dependencies = []
+
+[source]
+url = "https://github.com/OpenMathLib/OpenBLAS/releases/download/v0.3.30/OpenBLAS-0.3.30.tar.gz"
+sha256 = "27342cff518646afb4c2b976d809102e368957974c250a25ccc965e53063c95d"
+directory = "OpenBLAS-0.3.30"
+
+[build]
+system = "make"
+# HOSTCC builds tools that execute on the Zen 3 build host. CC/FC build the
+# library for Zen 5. DYNAMIC_ARCH supplies OpenBLAS' Zen 5 runtime dispatch,
+# while TARGET=ZEN prevents common-code tuning from being inferred from Zen 3.
+arguments = [
+  "CC=${CC}",
+  "FC=${FC}",
+  "HOSTCC=${CC}",
+  "AR=${GCC_ROOT}/bin/gcc-ar",
+  "RANLIB=${GCC_ROOT}/bin/gcc-ranlib",
+  "TARGET=ZEN",
+  "DYNAMIC_ARCH=1",
+  "COMMON_OPT=-O3 -march=znver5 -mtune=znver5 -flto=auto",
+  "USE_THREAD=0",
+  "USE_OPENMP=0",
+  "NO_AFFINITY=1",
+  "LDFLAGS=-flto=auto -Wl,-rpath,${GCC_ROOT}/lib64 -Wl,-rpath,${GCC_ROOT}/lib",
+]
+install_arguments = ["PREFIX={prefix}"]
+
+[module]
+root_environment = ["OPENBLAS_ROOT", "BLAS_ROOT", "LAPACK_ROOT"]
+
+[module.environment]
+OPENBLAS_NUM_THREADS = "1"
+
+[module.paths]
+LD_LIBRARY_PATH = ["lib"]
+LIBRARY_PATH = ["lib"]
+CPATH = ["include"]
+PKG_CONFIG_PATH = ["lib/pkgconfig"]
+
+[[tests]]
+type = "file"
+path = "lib/libopenblas.so"
+
+[[tests]]
+type = "directory"
+path = "include"
+
+[[tests]]
+type = "target-script"
+path = "smoke-test.sh"

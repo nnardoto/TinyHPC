@@ -1,0 +1,8 @@
+diff --git a/CMAKE/FortranMangling.cmake b/CMAKE/FortranMangling.cmake
+index b99df8e..ba36ef3 100644
+--- a/CMAKE/FortranMangling.cmake
++++ b/CMAKE/FortranMangling.cmake
+@@ -19,2 +19,3 @@ FUNCTION(COMPILE RESULT)
+          "-DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}"
++         "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+          "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}" "${PROJECT_SOURCE_DIR}//BLACS/INSTALL"

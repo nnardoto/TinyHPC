@@ -1,0 +1,59 @@
+schema = 1
+
+[package]
+name = "scalapack-zen5"
+version = "2.2.0"
+description = "ScaLAPACK 2.2.0 targeting AMD EPYC Zen 5 with OpenBLAS Zen 5"
+dependencies = ["openblas-zen5/0.3.30"]
+
+[source]
+url = "https://github.com/Reference-ScaLAPACK/scalapack/archive/refs/tags/v2.2.0.tar.gz"
+archive = "scalapack-2.2.0.tar.gz"
+sha256 = "8862fc9673acf5f87a474aaa71cd74ae27e9bbeee475dbd7292cec5b8bcbdcf3"
+directory = "scalapack-2.2.0"
+
+[build]
+system = "cmake"
+requires = ["cmake"]
+arguments = [
+  "-DCMAKE_SYSTEM_NAME=Linux",
+  "-DCMAKE_SYSTEM_PROCESSOR=x86_64",
+  "-DCMAKE_BUILD_TYPE=Release",
+  # BLACS uses pre-C99 implicit function declarations; GCC 14+ rejects them.
+  "-DCMAKE_C_FLAGS_RELEASE=-O3 -march=znver5 -mtune=znver5 -flto=auto -std=gnu89",
+  # Older ScaLAPACK calls BLACS with mismatched argument ranks; allow it.
+  "-DCMAKE_Fortran_FLAGS_RELEASE=-O3 -march=znver5 -mtune=znver5 -flto=auto -fallow-argument-mismatch",
+  "-DCMAKE_SHARED_LINKER_FLAGS=-flto=auto",
+  "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+  "-DCMAKE_C_COMPILER=${MPI_ROOT}/bin/mpicc",
+  "-DCMAKE_Fortran_COMPILER=${MPI_ROOT}/bin/mpifort",
+  "-DMPI_C_COMPILER=${MPI_ROOT}/bin/mpicc",
+  "-DMPI_Fortran_COMPILER=${MPI_ROOT}/bin/mpifort",
+  "-DBUILD_SHARED_LIBS=ON",
+  "-DSCALAPACK_BUILD_TESTS=OFF",
+  "-DBLAS_LIBRARIES=${OPENBLAS_ROOT}/lib/libopenblas.so",
+  "-DLAPACK_LIBRARIES=${OPENBLAS_ROOT}/lib/libopenblas.so",
+  "-DLAPACK_FOUND=TRUE",
+  "-DCMAKE_INSTALL_RPATH=${OPENBLAS_ROOT}/lib;${MPI_ROOT}/lib;${GCC_ROOT}/lib64;${GCC_ROOT}/lib",
+]
+
+[build.environment]
+# CMake itself runs on the host and must keep using the host libstdc++.
+LD_LIBRARY_PATH = "${TINYHPC_HOST_LD_LIBRARY_PATH}"
+LDFLAGS = "-flto=auto -Wl,-rpath,${GCC_ROOT}/lib64 -Wl,-rpath,${GCC_ROOT}/lib -Wl,-rpath,${MPI_ROOT}/lib -Wl,-rpath,${OPENBLAS_ROOT}/lib"
+
+[module]
+root_environment = ["SCALAPACK_ROOT"]
+
+[module.paths]
+LD_LIBRARY_PATH = ["lib"]
+LIBRARY_PATH = ["lib"]
+PKG_CONFIG_PATH = ["lib/pkgconfig"]
+
+[[tests]]
+type = "file"
+path = "lib/libscalapack.so"
+
+[[tests]]
+type = "target-script"
+path = "smoke-test.sh"

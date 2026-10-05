@@ -27,6 +27,7 @@ OPENMX_SPEC = "gcc/9.5.0/openmpi/5.0.8/openmx/4.0.1"
 GCC16_SPEC = "gcc/16.2.0"
 GCC16_QE_SPEC = "gcc/16.2.0/openmpi/5.0.8/quantum-espresso/7.6"
 GCC16_OPENMX_SPEC = "gcc/16.2.0/openmpi/5.0.8/openmx/4.0.1"
+GCC16_OPENMX_ZEN5_SPEC = "gcc/16.2.0/openmpi/5.0.8/openmx-zen5/4.0.1"
 GCC16_CP2K_SPEC = "gcc/16.2.0/openmpi/5.0.8/cp2k/2026.2"
 GCC16_SIESTA_SPEC = "gcc/16.2.0/openmpi/5.0.8/siesta/5.4.2"
 GCC16_FPM_SPEC = "gcc/16.2.0/fpm/0.13.0"
@@ -117,6 +118,16 @@ class HierarchyTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
+            self.repository.plan(GCC16_OPENMX_ZEN5_SPEC),
+            [
+                *common,
+                "gcc/16.2.0/fftw-zen5/3.3.10",
+                "gcc/16.2.0/openblas-zen5/0.3.30",
+                "gcc/16.2.0/openmpi/5.0.8/scalapack-zen5/2.2.0",
+                GCC16_OPENMX_ZEN5_SPEC,
+            ],
+        )
+        self.assertEqual(
             self.repository.plan(GCC16_CP2K_SPEC),
             [
                 *common,
@@ -159,6 +170,29 @@ class HierarchyTests(unittest.TestCase):
                 GCC16_FPM_SPEC,
             ],
         )
+
+    def test_openmx_zen5_recipe_is_explicit_and_host_independent(self):
+        recipe = self.repository.get(GCC16_OPENMX_ZEN5_SPEC)
+        script = (recipe.directory / recipe.build["script"]).read_text()
+
+        self.assertIn("-march=znver5", script)
+        self.assertIn("-mtune=znver5", script)
+        self.assertNotIn("${HPC_OPT_FLAGS}", script)
+        self.assertIn("target-script", {test["type"] for test in recipe.tests})
+
+        for spec in (
+            "gcc/16.2.0/openblas-zen5/0.3.30",
+            "gcc/16.2.0/fftw-zen5/3.3.10",
+            "gcc/16.2.0/openmpi/5.0.8/scalapack-zen5/2.2.0",
+        ):
+            with self.subTest(spec=spec):
+                dependency = self.repository.get(spec)
+                recipe_text = dependency.path.read_text()
+                self.assertIn("-march=znver5", recipe_text)
+                self.assertIn("-mtune=znver5", recipe_text)
+                self.assertIn(
+                    "target-script", {test["type"] for test in dependency.tests}
+                )
 
     def test_scientific_stacks_use_native_hybrid_configuration(self):
         for compiler in ("gcc/9.5.0", GCC16_SPEC):
@@ -417,6 +451,27 @@ class ValidationTests(unittest.TestCase):
                 self.assertTrue(runtime.installed(recipe))
                 recipe.path.write_text(recipe.path.read_text() + "\n# changed\n")
                 self.assertFalse(runtime.installed(recipe))
+
+    def test_target_script_is_deferred_during_install_and_runs_explicitly(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.write_recipe(root, "a/1", [])
+            repository = Repository(root)
+            recipe = repository.get("a/1")
+            recipe.tests = [{"type": "target-script", "path": "target-test.sh"}]
+            (recipe.directory / "target-test.sh").write_text("#!/usr/bin/env bash\n")
+            runtime = Runtime(repository)
+
+            with mock.patch.object(runtime, "run") as run:
+                runtime.test(recipe)
+                run.assert_not_called()
+
+                runtime.test(recipe, include_target=True)
+                run.assert_called_once_with(
+                    ["bash", str(recipe.directory / "target-test.sh")],
+                    cwd=recipe.directory,
+                    environment=mock.ANY,
+                )
 
     def test_compiler_context_does_not_change_fingerprint(self):
         repository = Repository(REPOSITORY_ROOT)

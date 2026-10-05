@@ -37,6 +37,24 @@ module load quantum-espresso/7.6
 command -v pw.x
 ```
 
+Para compilar no host x86-64/Zen 3 e executar somente o OpenMX em um nó AMD
+EPYC Zen 5, use a receita especializada. Mantenha o perfil global `generic`:
+
+```bash
+HPC_PROFILE=generic hpc install \
+  gcc/16.2.0/openmpi/5.0.8/openmx-zen5/4.0.1
+```
+
+O braço especializado aplica `-march=znver5 -mtune=znver5` e LTO ao OpenBLAS,
+FFTW, ScaLAPACK e OpenMX. Apenas GCC e OpenMPI permanecem genéricos, pois seus
+executáveis precisam rodar no Zen 3 durante a compilação. Os testes que executam
+os artefatos Zen 5 ficam adiados até o nó de destino:
+
+```bash
+HPC_PROFILE=generic hpc test \
+  gcc/16.2.0/openmpi/5.0.8/openmx-zen5/4.0.1
+```
+
 `hpc list` mostra as receitas disponíveis em árvore (agrupadas por categoria, compilador e hierarquia de dependências), `hpc installed` lista as instalações válidas, `hpc info` exibe metadados e dependências, `hpc plan` imprime a ordem de build (GMP, MPFR, MPC, GCC, Open MPI, OpenBLAS, FFTW, ScaLAPACK e Quantum ESPRESSO) e `hpc install` resolve as dependências, reutilizando o que já está instalado.
 
 `hpc list` aceita um prefixo para restringir a árvore (ex.: `hpc list gcc/16.2.0/openmpi`) e as flags `--flat` (uma spec por linha, para scripts) e `--module` (agrupado por seções, no estilo `module avail`). `hpc installed` aceita as mesmas opções.
