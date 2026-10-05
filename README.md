@@ -45,8 +45,9 @@ HPC_PROFILE=generic hpc install \
   gcc/16.2.0/openmpi/5.0.8/openmx-zen5/4.0.1
 ```
 
-O braço especializado aplica `-march=znver5 -mtune=znver5` e LTO ao OpenBLAS,
-FFTW, ScaLAPACK e OpenMX. Apenas GCC e OpenMPI permanecem genéricos, pois seus
+O braço especializado aplica `-march=znver5 -mtune=znver5` ao OpenBLAS, FFTW,
+ScaLAPACK e OpenMX, usando LTO onde ele é compatível com o sistema de build.
+Apenas GCC e OpenMPI permanecem genéricos, pois seus
 executáveis precisam rodar no Zen 3 durante a compilação. Os testes que executam
 os artefatos Zen 5 ficam adiados até o nó de destino:
 

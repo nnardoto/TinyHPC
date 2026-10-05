@@ -30,10 +30,12 @@ arguments = [
   "CC=${CC}",
   "F77=${FC}",
   "FC=${FC}",
-  "CFLAGS=-O3 -march=znver5 -mtune=znver5 -flto=auto",
-  "FFLAGS=-O3 -march=znver5 -mtune=znver5 -flto=auto",
-  "FCFLAGS=-O3 -march=znver5 -mtune=znver5 -flto=auto",
-  "LDFLAGS=-flto=auto -Wl,-rpath,${GCC_ROOT}/lib64 -Wl,-rpath,${GCC_ROOT}/lib",
+  # Keep FFTW's generated build utilities as ordinary objects. LTO causes its
+  # internal bench executable to lose the main symbol with external binutils.
+  "CFLAGS=-O3 -march=znver5 -mtune=znver5",
+  "FFLAGS=-O3 -march=znver5 -mtune=znver5",
+  "FCFLAGS=-O3 -march=znver5 -mtune=znver5",
+  "LDFLAGS=-Wl,-rpath,${GCC_ROOT}/lib64 -Wl,-rpath,${GCC_ROOT}/lib",
 ]
 
 [module]
